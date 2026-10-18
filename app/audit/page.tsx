@@ -48,7 +48,7 @@ export default function AuditCommandCenterPage() {
         loadAllData();
     }, []);
 
-    // SSR-Safe Leaflet Map Loader Centered on Noida Sector 126, 104 & 76
+    // Keyless OpenStreetMap Dark-Radar Loader Centered on Noida Sector 126, 104 & 76
     useEffect(() => {
         if (typeof window === 'undefined' || !mapContainerRef.current) return;
 
@@ -71,21 +71,26 @@ export default function AuditCommandCenterPage() {
             }
 
             // Centered on Noida Expressway Corridor (Sector 126, 104, 76)
-            const map = L.map(mapContainerRef.current).setView([28.5505, 77.361], 13);
+            const map = L.map(mapContainerRef.current).setView([28.5505, 77.361], 12);
             mapInstanceRef.current = map;
 
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; OpenStreetMap & CartoDB',
+            // 100% Free OpenStreetMap Tiles (Zero API Key Ever Required)
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors',
+                maxZoom: 19,
             }).addTo(map);
 
+            const bounds: [number, number][] = [];
+
             kitchens.forEach((k) => {
+                bounds.push([k.lat, k.lng]);
                 const marker = L.circleMarker([k.lat, k.lng], {
-                    radius: 9,
+                    radius: 10,
                     fillColor: '#10b981',
                     color: '#ffffff',
-                    weight: 2,
+                    weight: 2.5,
                     opacity: 1,
-                    fillOpacity: 0.9,
+                    fillOpacity: 0.95,
                 }).addTo(map);
 
                 marker.bindPopup(
@@ -96,6 +101,10 @@ export default function AuditCommandCenterPage() {
           </div>`
                 );
             });
+
+            if (bounds.length > 0) {
+                map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+            }
         };
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -109,10 +118,15 @@ export default function AuditCommandCenterPage() {
         }
     }, [kitchens]);
 
-    // 1-Click Seed for Noida Sector 126, 104, 76 Demo
+    // 1-Click Seed: Automatically Clears Old Sec-62 Rows & Seeds Sec 126, 104 & 76
     const handleSeedExpresswayDemo = async () => {
         setLoading(true);
-        let activeKitchens = kitchens;
+
+        // 1. Delete old Sector 62 placeholder kitchens so only Sec 126, 104, 76 remain
+        await supabase.from('kitchens').delete().ilike('address', '%Sector 62%');
+
+        const { data: existingKitchens } = await supabase.from('kitchens').select('*');
+        let activeKitchens = existingKitchens || [];
 
         if (activeKitchens.length === 0) {
             const { data: insertedKitchens } = await supabase
@@ -138,7 +152,7 @@ export default function AuditCommandCenterPage() {
                         weekly_est_uco_kg: 51.0,
                         lat: 28.5389,
                         lng: 77.3688,
-                        address: 'Hajipur Commercial Hub, Sector 104, Noida',
+                        address: 'Commercial Market, Sector 104, Noida',
                     },
                     {
                         name: 'Sector 76 Food Street Roll Corner',
@@ -380,9 +394,10 @@ export default function AuditCommandCenterPage() {
                         </span>
                     </div>
 
+                    {/* Dark-Mode Filtered OpenStreetMap Container (Zero API Key Needed) */}
                     <div
                         ref={mapContainerRef}
-                        className="h-[360px] w-full rounded-xl border border-slate-800 bg-slate-950 z-0"
+                        className="h-[360px] w-full rounded-xl border border-slate-800 bg-slate-950 z-0 [&_.leaflet-tile-pane]:invert [&_.leaflet-tile-pane]:hue-rotate-180 [&_.leaflet-tile-pane]:brightness-95 [&_.leaflet-tile-pane]:contrast-90"
                     />
 
                     <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
