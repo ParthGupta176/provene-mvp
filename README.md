@@ -1,36 +1,12 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Provene // SAF-Ledger (Noida Expressway Pilot)
 
-## Getting Started
+**Zero-Trust Cryptographic Traceability for Used Cooking Oil (UCO) & Sustainable Aviation Fuel (SAF) Feedstock**
 
-First, run the development server:
+* **Pilot Clusters:** Noida Sector 126, Sector 104 & Sector 76
+* **Compliance Standards:** FSSAI RUCO (TPC > 25%) & ISCC EU / CORSIA Point-of-Origin
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Core Architecture
+1. **/kitchen (FBO Onboarding & RUCO Certificate Portal):** Live GPS geofencing, fryer-capacity indexing, touch-screen ISCC self-declaration signature pad, and printable FSSAI RUCO disposal certificates.
+2. **/driver (Edge Collector & SHA-256 Batch Sealer):** NFC/QR drum scanner (DRM-NOIDA-S126-01), ESP32 Smart Funnel assay telemetry (TPC % & Moisture %), 85% fryer plausibility anti-dilution engine, and browser-native Web Crypto SHA-256 sealing.
+3. **/audit (Aggregator & SAF Refinery Command Center):** Keyless OpenStreetMap dark-radar for Noida Sector 126/104/76, real-time cryptographic ledger, and interactive database tamper simulator.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
