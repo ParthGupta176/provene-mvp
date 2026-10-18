@@ -16,8 +16,48 @@ export interface Kitchen {
     lat: number;
     lng: number;
     address: string;
-    signature_data?: string;
+    login_id?: string;
+    password?: string;
+    pickup_requested?: boolean;
+    pickup_eta?: string;
     iscc_declared: boolean;
+    created_at: string;
+}
+
+export interface Aggregator {
+    id: string;
+    company_name: string;
+    contact_person: string;
+    phone: string;
+    gst_or_license: string;
+    min_capacity_kg: number;
+    max_capacity_kg: number;
+    rate_per_kg: number;
+    oil_bought_kg: number;
+    created_at: string;
+}
+
+export interface Driver {
+    id: string;
+    name: string;
+    phone: string;
+    vehicle_number: string;
+    license_number: string;
+    employment_type: 'PROVENE_HIRED' | 'THIRD_PARTY';
+    aggregator_id?: string | null;
+    aggregator_name?: string;
+    login_id: string;
+    password: string;
+    created_at: string;
+}
+
+export interface Employee {
+    id: string;
+    name: string;
+    role: string;
+    phone: string;
+    login_id: string;
+    password: string;
     created_at: string;
 }
 
@@ -34,5 +74,8 @@ export interface Collection {
     payload_json: string;
     sha256_hash: string;
     collector_gps?: string;
+    driver_name?: string;
+    aggregator_id?: string | null;
+    aggregator_name?: string;
     created_at: string;
 }
