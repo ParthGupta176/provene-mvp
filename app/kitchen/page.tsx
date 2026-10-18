@@ -13,9 +13,24 @@ import {
 } from 'lucide-react';
 
 const CLUSTER_PRESETS = [
-    { label: 'Sector 126 (Raipur / Amity Belt)', lat: 28.5442, lng: 77.334, address: 'Main Market, Sector 126, Noida' },
-    { label: 'Sector 104 (Hajipur Commercial Hub)', lat: 28.5389, lng: 77.3688, address: 'Hajipur Market, Sector 104, Noida' },
-    { label: 'Sector 76 (Silicon City Food Street)', lat: 28.5672, lng: 77.3792, address: 'Amrapali Crystal / Silicon Market, Sector 76, Noida' },
+    {
+        label: 'Sector 126 Market',
+        lat: 28.5442,
+        lng: 77.334,
+        address: 'Main Market, Sector 126, Noida',
+    },
+    {
+        label: 'Sector 104 Market',
+        lat: 28.5389,
+        lng: 77.3688,
+        address: 'Commercial Market, Sector 104, Noida',
+    },
+    {
+        label: 'Sector 76 Market',
+        lat: 28.5672,
+        lng: 77.3792,
+        address: 'Central Food Market, Sector 76, Noida',
+    },
 ];
 
 export default function KitchenPortalPage() {
@@ -34,7 +49,7 @@ export default function KitchenPortalPage() {
     const [lat, setLat] = useState<number>(28.5442);
     const [lng, setLng] = useState<number>(77.334);
     const [isccDeclared, setIsccDeclared] = useState(true);
-    const [gpsStatus, setGpsStatus] = useState('Default: Sector 126 Noida Coordinates');
+    const [gpsStatus, setGpsStatus] = useState('Selected Cluster: Sector 126, Noida');
     const [submitting, setSubmitting] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
 
@@ -59,8 +74,10 @@ export default function KitchenPortalPage() {
         fetchAllData();
     }, []);
 
-    // Signature Pad Handlers
-    const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    // Touch & Mouse Signature Pad Handlers
+    const startDrawing = (
+        e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>
+    ) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
@@ -76,7 +93,9 @@ export default function KitchenPortalPage() {
         setIsDrawing(true);
     };
 
-    const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const draw = (
+        e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>
+    ) => {
         if (!isDrawing) return;
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -100,7 +119,7 @@ export default function KitchenPortalPage() {
 
     const lockLiveGps = () => {
         if (!navigator.geolocation) {
-            setGpsStatus('Geolocation not supported — using Noida Expressway preset');
+            setGpsStatus('Geolocation not supported — use Sector 126 / 104 / 76 preset below');
             return;
         }
         setGpsStatus('Acquiring satellite lock...');
@@ -108,7 +127,9 @@ export default function KitchenPortalPage() {
             (pos) => {
                 setLat(Number(pos.coords.latitude.toFixed(6)));
                 setLng(Number(pos.coords.longitude.toFixed(6)));
-                setGpsStatus(`Live GPS Locked: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
+                setGpsStatus(
+                    `Live GPS Locked: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`
+                );
             },
             () => {
                 setGpsStatus('Browser blocked GPS — select Sector 126 / 104 / 76 preset below');
@@ -170,7 +191,8 @@ export default function KitchenPortalPage() {
                         FBO Kitchen Onboarding & FSSAI RUCO Portal
                     </h1>
                     <p className="text-xs text-slate-400">
-                        ISCC EU Point-of-Origin Self-Declaration & Official Disposal Certificate Generator (Sec 126 • 104 • 76)
+                        ISCC EU Point-of-Origin Self-Declaration & Official Disposal Certificate Generator
+                        (Sector 126 • Sector 104 • Sector 76)
                     </p>
                 </div>
 
@@ -208,18 +230,19 @@ export default function KitchenPortalPage() {
                         <button
                             type="button"
                             onClick={() => {
-                                setName('Kapoor Zaika & Rolls');
-                                setOwnerName('Rajesh Kapoor');
+                                setName('Sector 126 Main Market Kitchen');
+                                setOwnerName('Rajesh Sharma');
                                 setPhone('9811548290');
                                 setFssaiNumber('22724101001928');
                                 setFryerCapacity(50);
                                 setAddress('Main Market, Sector 126, Noida');
-                                setLat(28.5446);
-                                setLng(77.3345);
+                                setLat(28.5442);
+                                setLng(77.334);
+                                setGpsStatus('Demo Fill: Sector 126, Noida');
                             }}
                             className="rounded border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] text-slate-300 hover:text-white"
                         >
-                            Auto-Fill Demo Kitchen
+                            Quick Demo Fill
                         </button>
                     </div>
 
@@ -232,27 +255,33 @@ export default function KitchenPortalPage() {
 
                     <div className="grid gap-4 md:grid-cols-2">
                         <div>
-                            <label className="block text-xs text-slate-300 mb-1">Restaurant / Mess Name *</label>
+                            <label className="block text-xs text-slate-300 mb-1">
+                                Restaurant / Mess Name *
+                            </label>
                             <input
                                 required
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                placeholder="e.g., Aroma Wok Studio Sec-104"
+                                placeholder="Enter outlet name"
                                 className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs text-slate-300 mb-1">Owner / Manager Name *</label>
+                            <label className="block text-xs text-slate-300 mb-1">
+                                Owner / Manager Name *
+                            </label>
                             <input
                                 required
                                 value={ownerName}
                                 onChange={(e) => setOwnerName(e.target.value)}
-                                placeholder="e.g., Amit Verma"
+                                placeholder="Enter owner name"
                                 className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs text-slate-300 mb-1">WhatsApp / UPI Phone *</label>
+                            <label className="block text-xs text-slate-300 mb-1">
+                                WhatsApp / UPI Phone *
+                            </label>
                             <input
                                 required
                                 value={phone}
@@ -262,7 +291,9 @@ export default function KitchenPortalPage() {
                             />
                         </div>
                         <div>
-                            <label className="block text-xs text-slate-300 mb-1">14-Digit FSSAI License Number *</label>
+                            <label className="block text-xs text-slate-300 mb-1">
+                                14-Digit FSSAI License Number *
+                            </label>
                             <input
                                 required
                                 value={fssaiNumber}
@@ -275,7 +306,9 @@ export default function KitchenPortalPage() {
 
                     <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 space-y-2">
                         <div className="flex justify-between text-xs">
-                            <span className="text-slate-300 font-medium">Total Commercial Fryer Capacity (Liters)</span>
+                            <span className="text-slate-300 font-medium">
+                                Total Commercial Fryer Capacity (Liters)
+                            </span>
                             <span className="font-mono text-emerald-400 font-bold">
                                 Max Plausible Weekly UCO: {(fryerCapacity * 0.85).toFixed(1)} kg
                             </span>
@@ -290,7 +323,8 @@ export default function KitchenPortalPage() {
                             className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-sm text-white"
                         />
                         <p className="text-[11px] text-slate-400">
-                            Used by Provene&apos;s plausibility algorithm to prevent synthetic palm-oil dilution fraud.
+                            Used by Provene&apos;s plausibility algorithm to prevent synthetic palm-oil dilution
+                            fraud.
                         </p>
                     </div>
 
@@ -386,7 +420,9 @@ export default function KitchenPortalPage() {
                         disabled={submitting}
                         className="w-full rounded-xl bg-emerald-500 py-3 text-sm font-bold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-50"
                     >
-                        {submitting ? 'Registering on Ledger...' : 'Complete Kitchen Onboarding & Lock Geofence'}
+                        {submitting
+                            ? 'Registering on Ledger...'
+                            : 'Complete Kitchen Onboarding & Lock Geofence'}
                     </button>
                 </form>
             ) : (
@@ -400,7 +436,9 @@ export default function KitchenPortalPage() {
                                 onChange={(e) => setSelectedKitchenId(e.target.value)}
                                 className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-white"
                             >
-                                <option value="ALL">All Noida Expressway Kitchens ({collections.length})</option>
+                                <option value="ALL">
+                                    All Noida Expressway Kitchens ({collections.length})
+                                </option>
                                 {kitchens.map((k) => (
                                     <option key={k.id} value={k.id}>
                                         {k.name} ({k.address})
@@ -420,7 +458,7 @@ export default function KitchenPortalPage() {
                     {filteredCollections.length === 0 ? (
                         <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-10 text-center text-sm text-slate-400">
                             No collections logged yet. Go to <strong>2. Collector App (SHA-256)</strong> or click{' '}
-                            <strong>Seed Demo Batches</strong> in the SAF Command Center.
+                            <strong>Seed Sec 126/104/76 Demo Data</strong> in the SAF Command Center.
                         </div>
                     ) : (
                         <div className="grid gap-4 md:grid-cols-2">
@@ -432,7 +470,8 @@ export default function KitchenPortalPage() {
                                     <div className="flex items-start justify-between border-b border-slate-800 pb-3">
                                         <div>
                                             <span className="inline-flex items-center gap-1 text-[11px] font-mono uppercase text-emerald-400">
-                                                <ShieldCheck className="h-3.5 w-3.5" /> Official FSSAI RUCO & ISCC Certificate
+                                                <ShieldCheck className="h-3.5 w-3.5" /> Official FSSAI RUCO & ISCC
+                                                Certificate
                                             </span>
                                             <h3 className="text-lg font-bold text-white print:text-black">
                                                 {c.kitchen_name}
@@ -446,7 +485,9 @@ export default function KitchenPortalPage() {
                                     <div className="grid grid-cols-2 gap-2 text-xs">
                                         <div>
                                             <span className="text-slate-400">Sealed Drum Tag:</span>
-                                            <p className="font-mono font-semibold text-white print:text-black">{c.drum_id}</p>
+                                            <p className="font-mono font-semibold text-white print:text-black">
+                                                {c.drum_id}
+                                            </p>
                                         </div>
                                         <div>
                                             <span className="text-slate-400">Net Verified Weight:</span>
