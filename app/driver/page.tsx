@@ -33,7 +33,6 @@ export default function DriverCollectorPage() {
     const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
-        // Check URL for ?drum= parameter safely on client
         if (typeof window !== 'undefined') {
             const params = new URLSearchParams(window.location.search);
             const drumParam = params.get('drum');
@@ -70,7 +69,7 @@ export default function DriverCollectorPage() {
     const handleSealAndHash = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!currentKitchen) {
-            alert('Please onboard or select a kitchen first!');
+            alert('Please onboard a kitchen in 1. Kitchen Portal first!');
             return;
         }
         setSubmitting(true);
@@ -116,7 +115,7 @@ export default function DriverCollectorPage() {
 
     return (
         <div className="mx-auto max-w-2xl space-y-6">
-            {/* Top Bar */}
+            {/* Header & Demo Trigger Buttons */}
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
                 <div>
                     <h1 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -128,12 +127,13 @@ export default function DriverCollectorPage() {
                     </p>
                 </div>
 
-                {/* 1-Click Stage Demo Buttons */}
                 <div className="flex gap-2">
                     <button
                         type="button"
                         onClick={() => {
-                            setDrumId(`DRM-NOIDA-S126-0${Math.floor(Math.random() * 9 + 1)}`);
+                            const sectors = ['S126', 'S104', 'S76'];
+                            const pick = sectors[Math.floor(Math.random() * sectors.length)];
+                            setDrumId(`DRM-NOIDA-${pick}-0${Math.floor(Math.random() * 9 + 1)}`);
                             setWeightKg(28.5);
                             setTpcPercent(27.2);
                             setMoisturePercent(0.5);
@@ -163,7 +163,7 @@ export default function DriverCollectorPage() {
                 onSubmit={handleSealAndHash}
                 className="space-y-5 rounded-2xl border border-slate-800 bg-slate-900/60 p-6"
             >
-                {/* Drum Tag Scanner */}
+                {/* NFC / QR Drum Tag Bar */}
                 <div className="flex items-center justify-between rounded-xl border border-sky-500/30 bg-sky-950/20 p-3.5">
                     <div className="flex items-center gap-3">
                         <QrCode className="h-6 w-6 text-sky-400" />
@@ -189,7 +189,7 @@ export default function DriverCollectorPage() {
                     </button>
                 </div>
 
-                {/* Select Kitchen */}
+                {/* Kitchen Selector */}
                 <div>
                     <label className="block text-xs font-medium text-slate-300 mb-1">
                         Select Geotagged Kitchen (Point of Origin)
@@ -203,11 +203,15 @@ export default function DriverCollectorPage() {
                         }}
                         className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white"
                     >
-                        {kitchens.map((k) => (
-                            <option key={k.id} value={k.id}>
-                                {k.name} — {k.address} (Fryer: {k.fryer_capacity_liters}L)
-                            </option>
-                        ))}
+                        {kitchens.length === 0 ? (
+                            <option value="">No kitchens found — onboard one in /kitchen first</option>
+                        ) : (
+                            kitchens.map((k) => (
+                                <option key={k.id} value={k.id}>
+                                    {k.name} — {k.address} (Fryer: {k.fryer_capacity_liters}L)
+                                </option>
+                            ))
+                        )}
                     </select>
                     {currentKitchen && (
                         <div className="mt-1.5 flex flex-wrap justify-between text-[11px] font-mono text-slate-400">
@@ -220,7 +224,7 @@ export default function DriverCollectorPage() {
                     )}
                 </div>
 
-                {/* Weight & IoT Smart Funnel Telemetry */}
+                {/* Weight & Quality Telemetry */}
                 <div className="grid gap-4 md:grid-cols-3">
                     <div>
                         <label className="block text-xs text-slate-300 mb-1">Net Scale Weight (kg) *</label>
@@ -257,6 +261,7 @@ export default function DriverCollectorPage() {
                     </div>
                 </div>
 
+                {/* IoT Funnel Simulation Bar */}
                 <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-2 text-xs">
                     <span className="flex items-center gap-1.5 text-slate-300">
                         <Cpu className="h-4 w-4 text-sky-400" /> ESP32 Smart Funnel Telemetry
@@ -273,7 +278,7 @@ export default function DriverCollectorPage() {
                     </button>
                 </div>
 
-                {/* Live Camera Evidence */}
+                {/* Camera Upload */}
                 <div className="space-y-2">
                     <label className="block text-xs font-medium text-slate-300">
                         Live Scale & Drum Photo Evidence
@@ -298,7 +303,7 @@ export default function DriverCollectorPage() {
                     )}
                 </div>
 
-                {/* Real-Time Plausibility Verdict */}
+                {/* Plausibility Status Card */}
                 <div
                     className={`rounded-xl border p-3.5 text-xs ${plausibility.status === 'VERIFIED'
                             ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
@@ -330,7 +335,7 @@ export default function DriverCollectorPage() {
                 </button>
             </form>
 
-            {/* Cryptographic Seal Receipt */}
+            {/* SHA-256 Cryptographic Receipt */}
             {sealedResult && (
                 <div className="rounded-2xl border border-emerald-500/50 bg-slate-900 p-5 space-y-3">
                     <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">

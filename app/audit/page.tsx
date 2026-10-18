@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase, Kitchen, Collection } from '@/lib/supabase';
 import { generateSHA256 } from '@/lib/crypto';
 import {
-    Activity,
     ShieldAlert,
     ShieldCheck,
     Database,
@@ -49,7 +48,7 @@ export default function AuditCommandCenterPage() {
         loadAllData();
     }, []);
 
-    // Load Leaflet Map cleanly on client for Noida Sector 126, 104 & 76
+    // SSR-Safe Leaflet Map Loader Centered on Noida Sector 126, 104 & 76
     useEffect(() => {
         if (typeof window === 'undefined' || !mapContainerRef.current) return;
 
@@ -120,7 +119,7 @@ export default function AuditCommandCenterPage() {
                 .from('kitchens')
                 .insert([
                     {
-                        name: 'Raipur Kitchen & PG Mess',
+                        name: 'Sector 126 Campus Mess & Cafe',
                         owner_name: 'Vikram Yadav',
                         phone: '9811402918',
                         fssai_number: '22724101000912',
@@ -131,7 +130,7 @@ export default function AuditCommandCenterPage() {
                         address: 'Main Market, Sector 126, Noida',
                     },
                     {
-                        name: 'Hajipur Wok & Grill Studio',
+                        name: 'Sector 104 High-Street Wok Kitchen',
                         owner_name: 'Saurabh Malhotra',
                         phone: '9873110492',
                         fssai_number: '12723101000411',
@@ -142,7 +141,7 @@ export default function AuditCommandCenterPage() {
                         address: 'Hajipur Commercial Hub, Sector 104, Noida',
                     },
                     {
-                        name: 'Silicon Street Roll Junction',
+                        name: 'Sector 76 Food Street Roll Corner',
                         owner_name: 'Deepak Verma',
                         phone: '9910384721',
                         fssai_number: '22724101001184',
@@ -150,7 +149,7 @@ export default function AuditCommandCenterPage() {
                         weekly_est_uco_kg: 25.5,
                         lat: 28.5672,
                         lng: 77.3792,
-                        address: 'Silicon City Market, Sector 76, Noida',
+                        address: 'Central Market, Sector 76, Noida',
                     },
                 ])
                 .select('*');
@@ -305,15 +304,17 @@ export default function AuditCommandCenterPage() {
                 </div>
             </div>
 
-            {/* Side-by-Side Cryptographic Breach Inspector (When Tamper Button Clicked) */}
+            {/* Side-by-Side Cryptographic Breach Inspector */}
             {tamperedRow && (
                 <div className="rounded-2xl border-2 border-red-500 bg-slate-900 p-5 space-y-3">
                     <div className="flex items-center justify-between">
                         <span className="font-mono text-xs font-bold uppercase text-red-400">
-                            LIVE SHA-256 TAMPER AUDIT // DRUM: {tamperedRow.collection.drum_id} ({tamperedRow.collection.kitchen_name})
+                            LIVE SHA-256 TAMPER AUDIT // DRUM: {tamperedRow.collection.drum_id} (
+                            {tamperedRow.collection.kitchen_name})
                         </span>
                         <span className="font-mono text-xs text-red-300">
-                            Original: {tamperedRow.collection.weight_kg} kg → Altered in DB: {tamperedRow.fakeWeightKg} kg
+                            Original: {tamperedRow.collection.weight_kg} kg → Altered in DB:{' '}
+                            {tamperedRow.fakeWeightKg} kg
                         </span>
                     </div>
                     <div className="grid gap-3 md:grid-cols-2 font-mono text-xs">
