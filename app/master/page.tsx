@@ -45,7 +45,7 @@ const CLUSTER_PRESETS = [
 
 export default function ProveneEnterpriseOpsHub() {
   const router = useRouter();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ModuleTab>('overview');
   const [activeDrawer, setActiveDrawer] = useState<DrawerType>('NONE');
   const [inspectedCollection, setInspectedCollection] = useState<Collection | null>(null);
@@ -410,8 +410,8 @@ export default function ProveneEnterpriseOpsHub() {
                   onClick={() => setActiveTab(item.id)}
                   title={item.label}
                   className={`w-full flex items-center justify-between rounded-lg px-3 py-2.5 text-xs font-medium transition ${active
-                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold'
-                      : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 border border-transparent'
+                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold'
+                    : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 border border-transparent'
                     }`}
                 >
                   <div className="flex items-center gap-3">
@@ -618,8 +618,8 @@ export default function ProveneEnterpriseOpsHub() {
                           key={sec}
                           onClick={() => setSectorFilter(sec)}
                           className={`rounded px-2 py-0.5 text-[10px] font-semibold transition ${sectorFilter === sec
-                              ? 'bg-emerald-500 text-slate-950'
-                              : 'bg-slate-900 text-slate-400 hover:text-white'
+                            ? 'bg-emerald-500 text-slate-950'
+                            : 'bg-slate-900 text-slate-400 hover:text-white'
                             }`}
                         >
                           {sec === 'ALL' ? 'All' : sec.replace('Sector ', 'S')}
@@ -1340,8 +1340,8 @@ export default function ProveneEnterpriseOpsHub() {
                       type="button"
                       onClick={() => setDType('PROVENE_HIRED')}
                       className={`rounded-lg border py-2 font-bold ${dType === 'PROVENE_HIRED'
-                          ? 'border-emerald-500 bg-emerald-500/15 text-emerald-300'
-                          : 'border-slate-800 text-slate-400'
+                        ? 'border-emerald-500 bg-emerald-500/15 text-emerald-300'
+                        : 'border-slate-800 text-slate-400'
                         }`}
                     >
                       Provene In-House
@@ -1350,8 +1350,8 @@ export default function ProveneEnterpriseOpsHub() {
                       type="button"
                       onClick={() => setDType('THIRD_PARTY')}
                       className={`rounded-lg border py-2 font-bold ${dType === 'THIRD_PARTY'
-                          ? 'border-amber-500 bg-amber-500/15 text-amber-300'
-                          : 'border-slate-800 text-slate-400'
+                        ? 'border-amber-500 bg-amber-500/15 text-amber-300'
+                        : 'border-slate-800 text-slate-400'
                         }`}
                     >
                       3PL Aggregator

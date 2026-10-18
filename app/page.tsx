@@ -43,7 +43,7 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="space-y-16 pb-12 text-slate-900">
+    <div className="mx-auto max-w-7xl px-4 py-8 space-y-16 pb-12 text-slate-900">
       {/* 1. HERO SECTION */}
       <section className="rounded-3xl border border-slate-200 bg-white p-8 md:p-12 shadow-sm">
         <div className="grid gap-10 lg:grid-cols-12 lg:items-center">

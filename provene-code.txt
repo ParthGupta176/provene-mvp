@@ -1,0 +1,3692 @@
+﻿=== FILE: D:\Provene\app\audit\page.tsx ===
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { supabase, Kitchen, Collection } from '@/lib/supabase';
+import {
+  ShieldCheck,
+  Database,
+  Printer,
+  MapPin,
+} from 'lucide-react';
+
+export default function AuditCommandCenterPage() {
+  const [kitchens, setKitchens] = useState<Kitchen[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
+
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapInstanceRef = useRef<unknown>(null);
+
+  useEffect(() => {
+    async function loadAllData() {
+      const { data: kData } = await supabase
+        .from('kitchens')
+        .select('*')
+        .order('created_at', { ascending: false });
+      const { data: cData } = await supabase
+        .from('collections')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      setKitchens(kData || []);
+      setCollections(cData || []);
+    }
+    loadAllData();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !mapContainerRef.current) return;
+
+    if (!document.getElementById('leaflet-css')) {
+      const link = document.createElement('link');
+      link.id = 'leaflet-css';
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+
+    const initMap = () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const L = (window as any).L;
+      if (!L || !mapContainerRef.current) return;
+
+      if (mapInstanceRef.current) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (mapInstanceRef.current as any).remove();
+      }
+
+      const map = L.map(mapContainerRef.current).setView([28.5505, 77.361], 12);
+      mapInstanceRef.current = map;
+
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19,
+      }).addTo(map);
+
+      const bounds: [number, number][] = [];
+
+      kitchens.forEach((k) => {
+        bounds.push([k.lat, k.lng]);
+        const marker = L.circleMarker([k.lat, k.lng], {
+          radius: 10,
+          fillColor: '#10b981',
+          color: '#ffffff',
+          weight: 2.5,
+          opacity: 1,
+          fillOpacity: 0.95,
+        }).addTo(map);
+
+        marker.bindPopup(
+          `<div style="color:#0f172a;font-family:sans-serif;font-size:12px;">
+            <strong>${k.name}</strong><br/>
+            ${k.address}<br/>
+            <span>FSSAI: ${k.fssai_number}</span>
+          </div>`
+        );
+      });
+
+      if (bounds.length > 0) {
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+      }
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((window as any).L) {
+      initMap();
+    } else {
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.onload = initMap;
+      document.body.appendChild(script);
+    }
+  }, [kitchens]);
+
+  const totalCollectedKg = collections.reduce(
+    (sum, item) => sum + Number(item.weight_kg || 0),
+    0
+  );
+
+  return (
+    <div className="space-y-6 text-slate-100">
+      {/* Status Banner */}
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-emerald-500/40 bg-emerald-950/20 p-5 text-emerald-300">
+        <div className="flex items-center gap-3">
+          <ShieldCheck className="h-7 w-7 text-emerald-400 shrink-0" />
+          <div>
+            <h2 className="text-sm md:text-base font-bold uppercase tracking-wide">
+              NOIDA OPERATIONS COMMAND CENTER (SECTOR 126 â€¢ 104 â€¢ 76)
+            </h2>
+            <p className="text-xs opacity-90">
+              Live tracking of all partner restaurants and verified used oil pickups.
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => window.print()}
+          className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3.5 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-400 print:hidden"
+        >
+          <Printer className="h-3.5 w-3.5" /> Print Summary Report
+        </button>
+      </div>
+
+      {/* KPI Ribbon */}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+          <span className="text-xs text-slate-400">Total Oil Collected</span>
+          <p className="mt-1 text-2xl font-bold text-emerald-400">
+            {totalCollectedKg.toFixed(1)} kg
+          </p>
+        </div>
+        <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+          <span className="text-xs text-slate-400">Partner Restaurants</span>
+          <p className="mt-1 text-2xl font-bold text-white">{kitchens.length}</p>
+        </div>
+        <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+          <span className="text-xs text-slate-400">Biofuel Yield</span>
+          <p className="mt-1 text-2xl font-bold text-sky-400">
+            {(totalCollectedKg * 0.82).toFixed(1)} L
+          </p>
+        </div>
+        <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+          <span className="text-xs text-slate-400">Total Pickups</span>
+          <p className="mt-1 text-2xl font-bold text-amber-400">{collections.length}</p>
+        </div>
+      </div>
+
+      {/* Map + Recent Pickups Grid */}
+      <div className="grid gap-6 lg:grid-cols-12">
+        <div className="lg:col-span-5 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
+              <MapPin className="h-4 w-4 text-emerald-400" />
+              Noida Partner Map (Sec 126 â€¢ 104 â€¢ 76)
+            </span>
+            <span className="text-xs text-emerald-400 font-semibold">
+              {kitchens.length} Outlets
+            </span>
+          </div>
+
+          <div
+            ref={mapContainerRef}
+            className="h-[360px] w-full rounded-xl border border-slate-800 bg-slate-950 z-0 [&_.leaflet-tile-pane]:invert [&_.leaflet-tile-pane]:hue-rotate-180 [&_.leaflet-tile-pane]:brightness-95 [&_.leaflet-tile-pane]:contrast-90"
+          />
+        </div>
+
+        <div className="lg:col-span-7 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-4">
+          <span className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
+            <Database className="h-4 w-4 text-sky-400" />
+            Recent Oil Pickups
+          </span>
+
+          {collections.length === 0 ? (
+            <div className="rounded-xl border border-slate-800 bg-slate-950 p-10 text-center text-xs text-slate-400">
+              No oil pickups logged yet.
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+              {collections.map((c) => (
+                <div
+                  key={c.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950 p-4 text-xs"
+                >
+                  <div>
+                    <span className="font-mono font-bold text-sky-400">{c.drum_id}</span>
+                    <span className="mx-2 text-slate-600">â€¢</span>
+                    <span className="font-bold text-white text-sm">{c.kitchen_name}</span>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      {new Date(c.created_at).toLocaleString('en-IN')}
+                    </p>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="text-base font-extrabold text-emerald-400 block">
+                      {c.weight_kg} kg
+                    </span>
+                    <span className="text-slate-400">Paid: â‚¹{c.payout_inr}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+=== FILE: D:\Provene\app\driver\page.tsx ===
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { supabase, Kitchen } from '@/lib/supabase';
+import { evaluatePlausibility, generateSHA256 } from '@/lib/crypto';
+import {
+    Menu,
+    Truck,
+    MapPin,
+    Navigation,
+    Camera,
+    CheckCircle2,
+    Scale,
+    IndianRupee,
+    LogOut,
+    AlertCircle,
+    Factory,
+    ArrowLeft,
+} from 'lucide-react';
+
+function getDistanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371e3;
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return Math.round(R * c);
+}
+
+export default function DriverEnterprisePortal() {
+    const router = useRouter();
+    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [activeScreen, setActiveScreen] = useState<'route' | 'fill-data' | 'dropoff'>('route');
+
+    const [driverName, setDriverName] = useState('Ramesh Kumar');
+    const [driverVehicle, setDriverVehicle] = useState('UP16 AB 4921');
+    const [aggregatorId, setAggregatorId] = useState<string | null>(null);
+    const [aggregatorName, setAggregatorName] = useState('Provene Direct Fleet');
+
+    const [routeKitchens, setRouteKitchens] = useState<Kitchen[]>([]);
+    const [completedIds, setCompletedIds] = useState<string[]>([]);
+    const [selectedKitchen, setSelectedKitchen] = useState<Kitchen | null>(null);
+    const [runCollectedKg, setRunCollectedKg] = useState<number>(0);
+
+    const [checkingGps, setCheckingGps] = useState(false);
+    const [distanceMeters, setDistanceMeters] = useState<number | null>(null);
+    const [gpsError, setGpsError] = useState<string>('');
+
+    const [drumId, setDrumId] = useState<string>('DRUM-101');
+    const [weightKg, setWeightKg] = useState<string>('');
+    const [oilCondition, setOilCondition] = useState<'GOOD' | 'WATER_MIXED'>('GOOD');
+    const [photoName, setPhotoName] = useState<string>('');
+    const [submitting, setSubmitting] = useState(false);
+    const [dropOffDone, setDropOffDone] = useState(false);
+
+    const mapContainerRef = useRef<HTMLDivElement | null>(null);
+    const mapInstanceRef = useRef<unknown>(null);
+
+    useEffect(() => {
+        setDrumId(`DRUM-${Math.floor(100 + Math.random() * 900)}`);
+
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('provene_session');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (parsed.name) setDriverName(parsed.name);
+                    if (parsed.vehicle_number) setDriverVehicle(parsed.vehicle_number);
+                    if (parsed.aggregator_id) setAggregatorId(parsed.aggregator_id);
+                    if (parsed.aggregator_name) setAggregatorName(parsed.aggregator_name);
+                } catch {
+                    // ignore
+                }
+            }
+
+            const savedDone = sessionStorage.getItem('provene_driver_completed');
+            if (savedDone) {
+                try {
+                    setCompletedIds(JSON.parse(savedDone));
+                } catch {
+                    // ignore
+                }
+            }
+        }
+
+        async function loadRoute() {
+            const { data } = await supabase
+                .from('kitchens')
+                .select('*')
+                .order('pickup_requested', { ascending: false });
+            if (data) {
+                setRouteKitchens(data);
+                if (data.length > 0) setSelectedKitchen(data[0]);
+            }
+        }
+        loadRoute();
+    }, []);
+
+    const remainingKitchens = routeKitchens.filter((k) => !completedIds.includes(k.id));
+
+    useEffect(() => {
+        if (
+            activeScreen !== 'route' ||
+            !selectedKitchen ||
+            typeof window === 'undefined' ||
+            !mapContainerRef.current
+        )
+            return;
+
+        if (!document.getElementById('leaflet-css')) {
+            const link = document.createElement('link');
+            link.id = 'leaflet-css';
+            link.rel = 'stylesheet';
+            link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+            document.head.appendChild(link);
+        }
+
+        const initMap = () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const L = (window as any).L;
+            if (!L || !mapContainerRef.current) return;
+
+            if (mapInstanceRef.current) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (mapInstanceRef.current as any).remove();
+            }
+
+            const map = L.map(mapContainerRef.current).setView(
+                [selectedKitchen.lat, selectedKitchen.lng],
+                15
+            );
+            mapInstanceRef.current = map;
+
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap',
+                maxZoom: 19,
+            }).addTo(map);
+
+            const marker = L.circleMarker([selectedKitchen.lat, selectedKitchen.lng], {
+                radius: 10,
+                fillColor: '#0ea5e9',
+                color: '#ffffff',
+                weight: 2.5,
+                opacity: 1,
+                fillOpacity: 0.95,
+            }).addTo(map);
+
+            marker
+                .bindPopup(
+                    `<div style="color:#0f172a;font-family:sans-serif;font-size:12px;">
+            <strong>${selectedKitchen.name}</strong><br/>
+            ${selectedKitchen.address}
+          </div>`
+                )
+                .openPopup();
+        };
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if ((window as any).L) {
+            setTimeout(initMap, 50);
+        } else {
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+            script.onload = initMap;
+            document.body.appendChild(script);
+        }
+    }, [activeScreen, selectedKitchen]);
+
+    const handleVerify200mAndOpenForm = (kitchen: Kitchen) => {
+        setGpsError('');
+        setDistanceMeters(null);
+
+        if (!navigator.geolocation) {
+            setGpsError('Geolocation unavailable.');
+            return;
+        }
+
+        setCheckingGps(true);
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                setCheckingGps(false);
+                const dist = getDistanceInMeters(
+                    pos.coords.latitude,
+                    pos.coords.longitude,
+                    kitchen.lat,
+                    kitchen.lng
+                );
+                setDistanceMeters(dist);
+
+                if (dist <= 200) {
+                    setSelectedKitchen(kitchen);
+                    setActiveScreen('fill-data');
+                } else {
+                    setGpsError(
+                        `GPS distance is ${dist}m from ${kitchen.name}. Must be within 200m of outlet to unlock manifest entry.`
+                    );
+                }
+            },
+            () => {
+                setCheckingGps(false);
+                setGpsError('GPS signal blocked on device. Use doorstep override below to test.');
+            }
+        );
+    };
+
+    const handleSavePickup = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedKitchen) return;
+        const numericWeight = Number(weightKg) || 0;
+        if (numericWeight <= 0) return;
+
+        setSubmitting(true);
+
+        const tpcPercent = 27.0;
+        const moisturePercent = oilCondition === 'GOOD' ? 0.5 : 3.5;
+        const payoutInr = Math.round(numericWeight * 36);
+        const plausibility = evaluatePlausibility(
+            numericWeight,
+            selectedKitchen.fryer_capacity_liters || 50,
+            tpcPercent,
+            moisturePercent
+        );
+
+        const payload = {
+            kitchen_id: selectedKitchen.id,
+            kitchen_name: selectedKitchen.name,
+            drum_id: drumId,
+            weight_kg: numericWeight,
+            driver_name: driverName,
+            aggregator_name: aggregatorName,
+            timestamp: new Date().toISOString(),
+        };
+
+        const { canonicalJson, hash } = await generateSHA256(payload);
+
+        const { error } = await supabase.from('collections').insert([
+            {
+                kitchen_id: selectedKitchen.id,
+                kitchen_name: selectedKitchen.name,
+                drum_id: drumId,
+                weight_kg: numericWeight,
+                tpc_percent: tpcPercent,
+                moisture_percent: moisturePercent,
+                payout_inr: payoutInr,
+                plausibility_status: plausibility.status,
+                payload_json: canonicalJson,
+                sha256_hash: hash,
+                collector_gps: `${selectedKitchen.lat}, ${selectedKitchen.lng}`,
+                driver_name: driverName,
+                aggregator_id: aggregatorId,
+                aggregator_name: aggregatorName,
+            },
+        ]);
+
+        await supabase
+            .from('kitchens')
+            .update({ pickup_requested: false, pickup_eta: null })
+            .eq('id', selectedKitchen.id);
+
+        setSubmitting(false);
+
+        if (!error) {
+            const updatedDone = [...completedIds, selectedKitchen.id];
+            setCompletedIds(updatedDone);
+            sessionStorage.setItem('provene_driver_completed', JSON.stringify(updatedDone));
+            setRunCollectedKg((prev) => prev + numericWeight);
+
+            setWeightKg('');
+            setPhotoName('');
+            setDrumId(`DRUM-${Math.floor(100 + Math.random() * 900)}`);
+            setDistanceMeters(null);
+            setGpsError('');
+
+            const nextRemaining = routeKitchens.filter((k) => !updatedDone.includes(k.id));
+            setSelectedKitchen(nextRemaining[0] || null);
+            setActiveScreen('route');
+        } else {
+            alert(error.message);
+        }
+    };
+
+    const driverTotalPayout = Math.round(250 + completedIds.length * 40 + runCollectedKg * 4);
+
+    return (
+        <div className="flex h-screen w-full overflow-hidden bg-[#090d16] text-slate-100">
+            {/* LEFT COLLAPSIBLE SIDEBAR */}
+            <aside
+                className={`${sidebarOpen ? 'w-60' : 'w-16'
+                    } shrink-0 border-r border-slate-800/80 bg-[#0b101b] flex flex-col justify-between transition-all duration-200`}
+            >
+                <div>
+                    <div className="flex h-14 items-center gap-2.5 border-b border-slate-800/80 px-4">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-500 text-slate-950">
+                            <Truck className="h-4 w-4" />
+                        </div>
+                        {sidebarOpen && (
+                            <div className="overflow-hidden">
+                                <span className="text-xs font-extrabold text-white block truncate">
+                                    {driverName}
+                                </span>
+                                <span className="text-[10px] font-mono text-sky-400 block truncate">
+                                    {aggregatorName}
+                                </span>
+                            </div>
+                        )}
+                    </div>
+
+                    <nav className="p-2.5 space-y-1">
+                        <button
+                            onClick={() => setActiveScreen('route')}
+                            className={`w-full flex items-center justify-between rounded-lg px-3 py-2.5 text-xs font-medium transition ${activeScreen === 'route'
+                                    ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30 font-semibold'
+                                    : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                                }`}
+                        >
+                            <div className="flex items-center gap-3">
+                                <MapPin className="h-4 w-4 shrink-0" />
+                                {sidebarOpen && <span>Assigned Route</span>}
+                            </div>
+                            {sidebarOpen && (
+                                <span className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-[10px] text-slate-300">
+                                    {remainingKitchens.length}
+                                </span>
+                            )}
+                        </button>
+
+                        <button
+                            onClick={() => setActiveScreen('dropoff')}
+                            className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium transition ${activeScreen === 'dropoff'
+                                    ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30 font-semibold'
+                                    : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                                }`}
+                        >
+                            <Factory className="h-4 w-4 shrink-0" />
+                            {sidebarOpen && <span>Drop-Off Terminal</span>}
+                        </button>
+                    </nav>
+                </div>
+
+                <div className="border-t border-slate-800/80 p-3">
+                    <button
+                        onClick={() => {
+                            localStorage.removeItem('provene_session');
+                            router.push('/login');
+                        }}
+                        className="w-full flex items-center justify-center gap-2 rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs font-medium text-slate-400 hover:border-red-500/40 hover:text-red-300"
+                    >
+                        <LogOut className="h-4 w-4 shrink-0" />
+                        {sidebarOpen && <span>End Shift / Logout</span>}
+                    </button>
+                </div>
+            </aside>
+
+            {/* MAIN AREA */}
+            <div className="flex flex-1 flex-col overflow-hidden">
+                <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-800/80 bg-[#0b101b] px-6">
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setSidebarOpen(!sidebarOpen)}
+                            className="rounded-lg border border-slate-800 bg-slate-900 p-2 text-slate-300 hover:text-white"
+                        >
+                            <Menu className="h-4 w-4" />
+                        </button>
+                        <span className="text-xs font-bold uppercase tracking-wider text-white">
+                            Shift Manifest â€¢ Vehicle {driverVehicle}
+                        </span>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                        <div className="text-right">
+                            <span className="text-[10px] uppercase text-slate-400 block">Shift Payout</span>
+                            <span className="font-mono text-sm font-bold text-emerald-400">
+                                â‚¹{driverTotalPayout}
+                            </span>
+                        </div>
+                    </div>
+                </header>
+
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {/* Top Telemetry Strip */}
+                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                        <div className="rounded-xl border border-slate-800/90 bg-[#0d1322] p-4">
+                            <span className="text-[11px] font-semibold uppercase text-slate-400 flex items-center gap-1">
+                                <IndianRupee className="h-3.5 w-3.5 text-emerald-400" /> Shift Earnings
+                            </span>
+                            <p className="mt-1 font-mono text-2xl font-bold text-emerald-400">
+                                â‚¹{driverTotalPayout}
+                            </p>
+                        </div>
+                        <div className="rounded-xl border border-slate-800/90 bg-[#0d1322] p-4">
+                            <span className="text-[11px] font-semibold uppercase text-slate-400">
+                                Pending Stops
+                            </span>
+                            <p className="mt-1 font-mono text-2xl font-bold text-white">
+                                {remainingKitchens.length}
+                            </p>
+                        </div>
+                        <div className="rounded-xl border border-slate-800/90 bg-[#0d1322] p-4">
+                            <span className="text-[11px] font-semibold uppercase text-slate-400">
+                                Vehicle Load
+                            </span>
+                            <p className="mt-1 font-mono text-2xl font-bold text-sky-400">
+                                {runCollectedKg.toFixed(1)} kg
+                            </p>
+                        </div>
+                        <div className="rounded-xl border border-slate-800/90 bg-[#0d1322] p-4">
+                            <span className="text-[11px] font-semibold uppercase text-slate-400">
+                                Designated Drop-Off
+                            </span>
+                            <p className="mt-1 text-xs font-bold text-amber-400 truncate">
+                                {aggregatorName === 'Provene Direct Fleet'
+                                    ? 'Provene Hub Sec-126'
+                                    : aggregatorName}
+                            </p>
+                        </div>
+                    </div>
+
+                    {activeScreen === 'route' && (
+                        <div className="grid gap-6 lg:grid-cols-12">
+                            <div className="lg:col-span-5 rounded-xl border border-slate-800/90 bg-[#0d1322] p-4 space-y-3">
+                                <h2 className="text-xs font-bold uppercase tracking-wider text-white">
+                                    Assigned Pickup Queue ({remainingKitchens.length})
+                                </h2>
+
+                                {remainingKitchens.length === 0 ? (
+                                    <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-6 text-center space-y-3">
+                                        <CheckCircle2 className="h-8 w-8 text-emerald-400 mx-auto" />
+                                        <p className="text-sm font-bold text-white">All Route Stops Completed</p>
+                                        <button
+                                            onClick={() => setActiveScreen('dropoff')}
+                                            className="w-full rounded-lg bg-amber-500 py-2.5 text-xs font-bold text-slate-950"
+                                        >
+                                            Proceed to Drop-Off Terminal â†’
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                                        {remainingKitchens.map((k, idx) => {
+                                            const active = selectedKitchen?.id === k.id;
+                                            return (
+                                                <div
+                                                    key={k.id}
+                                                    onClick={() => {
+                                                        setSelectedKitchen(k);
+                                                        setGpsError('');
+                                                        setDistanceMeters(null);
+                                                    }}
+                                                    className={`cursor-pointer rounded-lg border p-3.5 transition ${active
+                                                            ? 'border-sky-500 bg-sky-950/25'
+                                                            : 'border-slate-800 bg-slate-950 hover:border-slate-700'
+                                                        }`}
+                                                >
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="font-mono text-[10px] font-bold text-sky-400">
+                                                            STOP #{idx + 1}
+                                                        </span>
+                                                        {k.pickup_requested && (
+                                                            <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-300">
+                                                                PRIORITY
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-sm font-bold text-white mt-0.5">{k.name}</p>
+                                                    <p className="text-xs text-slate-400">{k.address}</p>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="lg:col-span-7 rounded-xl border border-slate-800/90 bg-[#0d1322] p-4 space-y-4">
+                                {selectedKitchen ? (
+                                    <>
+                                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                                            <div>
+                                                <h3 className="text-base font-bold text-white">{selectedKitchen.name}</h3>
+                                                <p className="text-xs text-slate-400">{selectedKitchen.address}</p>
+                                            </div>
+                                            <a
+                                                href={`https://www.google.com/maps/dir/?api=1&destination=${selectedKitchen.lat},${selectedKitchen.lng}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3.5 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-400"
+                                            >
+                                                <Navigation className="h-3.5 w-3.5" /> Open Google Maps
+                                            </a>
+                                        </div>
+
+                                        <div
+                                            ref={mapContainerRef}
+                                            className="h-[290px] w-full rounded-lg border border-slate-800 bg-slate-950 z-0 [&_.leaflet-tile-pane]:invert [&_.leaflet-tile-pane]:hue-rotate-180 [&_.leaflet-tile-pane]:brightness-95 [&_.leaflet-tile-pane]:contrast-90"
+                                        />
+
+                                        {gpsError && (
+                                            <div className="rounded-lg border border-amber-500/40 bg-amber-950/30 p-3 space-y-2 text-xs text-amber-200">
+                                                <div className="flex items-start gap-2">
+                                                    <AlertCircle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                                                    <span>{gpsError}</span>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setDistanceMeters(30);
+                                                        setGpsError('');
+                                                        setActiveScreen('fill-data');
+                                                    }}
+                                                    className="rounded border border-amber-400/50 bg-amber-500/20 px-3 py-1 text-[11px] font-bold text-amber-300"
+                                                >
+                                                    Simulate Doorstep Arrival (30m) â†’
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        <button
+                                            type="button"
+                                            disabled={checkingGps}
+                                            onClick={() => handleVerify200mAndOpenForm(selectedKitchen)}
+                                            className="w-full rounded-lg bg-sky-500 py-3.5 text-xs font-bold text-slate-950 hover:bg-sky-400"
+                                        >
+                                            {checkingGps
+                                                ? 'Verifying GPS Proximity (<200m)...'
+                                                : `Arrived at ${selectedKitchen.name} â€” Log Oil Pickup`}
+                                        </button>
+                                    </>
+                                ) : (
+                                    <div className="py-16 text-center text-xs text-slate-500">
+                                        No active stops remaining.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {activeScreen === 'fill-data' && selectedKitchen && (
+                        <div className="mx-auto max-w-lg rounded-xl border border-slate-800/90 bg-[#0d1322] p-6 space-y-5">
+                            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                                <div>
+                                    <span className="text-[10px] font-mono uppercase text-emerald-400">
+                                        âœ“ GPS Proximity Verified ({distanceMeters ?? 30}m)
+                                    </span>
+                                    <h2 className="text-base font-bold text-white">{selectedKitchen.name}</h2>
+                                </div>
+                                <button
+                                    onClick={() => setActiveScreen('route')}
+                                    className="flex items-center gap-1 rounded border border-slate-700 px-2.5 py-1 text-xs text-slate-300"
+                                >
+                                    <ArrowLeft className="h-3.5 w-3.5" /> Back
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleSavePickup} className="space-y-4 text-xs">
+                                <div>
+                                    <label className="block text-slate-300 mb-1 flex items-center gap-1.5">
+                                        <Scale className="h-4 w-4 text-emerald-400" /> Net Oil Weight on Scale (kg) *
+                                    </label>
+                                    <input
+                                        type="number"
+                                        step="0.1"
+                                        min="1"
+                                        required
+                                        value={weightKg}
+                                        onChange={(e) => setWeightKg(e.target.value)}
+                                        placeholder="e.g. 28.5"
+                                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3.5 py-2.5 font-mono text-base font-bold text-white"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-slate-300 mb-1">Drum Seal ID</label>
+                                        <input
+                                            value={drumId}
+                                            onChange={(e) => setDrumId(e.target.value)}
+                                            className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sky-400"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-slate-300 mb-1">Visual Check</label>
+                                        <select
+                                            value={oilCondition}
+                                            onChange={(e) => setOilCondition(e.target.value as 'GOOD' | 'WATER_MIXED')}
+                                            className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                                        >
+                                            <option value="GOOD">âœ“ Standard Used Oil</option>
+                                            <option value="WATER_MIXED">âš  High Water / Sludge</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-700 bg-slate-950 py-3.5 text-slate-300 hover:border-sky-400">
+                                    <Camera className="h-4 w-4 text-sky-400" />
+                                    <span>{photoName ? `Attached: ${photoName}` : 'Attach Scale Photo'}</span>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        capture="environment"
+                                        onChange={(e) => setPhotoName(e.target.files?.[0]?.name || '')}
+                                        className="hidden"
+                                    />
+                                </label>
+
+                                <button
+                                    type="submit"
+                                    disabled={submitting}
+                                    className="w-full rounded-lg bg-emerald-500 py-3 font-bold text-slate-950 hover:bg-emerald-400"
+                                >
+                                    {submitting ? 'Sealing Manifest...' : 'Confirm & Lock Pickup Entry'}
+                                </button>
+                            </form>
+                        </div>
+                    )}
+
+                    {activeScreen === 'dropoff' && (
+                        <div className="mx-auto max-w-lg rounded-xl border border-slate-800/90 bg-[#0d1322] p-6 space-y-5">
+                            <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+                                <Factory className="h-6 w-6 text-amber-400" />
+                                <div>
+                                    <span className="text-[10px] font-mono uppercase text-amber-400">
+                                        Designated Unloading Facility
+                                    </span>
+                                    <h2 className="text-base font-bold text-white">
+                                        {aggregatorName === 'Provene Direct Fleet'
+                                            ? 'Provene Central Aggregation Hub â€” Sector 126'
+                                            : `${aggregatorName} â€” Refinery Intake Terminal`}
+                                    </h2>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 rounded-lg border border-slate-800 bg-slate-950 p-4 text-xs">
+                                <div>
+                                    <span className="text-slate-400 block">Total Oil in Vehicle</span>
+                                    <span className="font-mono text-lg font-bold text-sky-400">
+                                        {runCollectedKg.toFixed(1)} kg
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="text-slate-400 block">Settlement Due</span>
+                                    <span className="font-mono text-lg font-bold text-emerald-400">
+                                        â‚¹{driverTotalPayout}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <a
+                                href="https://www.google.com/maps/dir/?api=1&destination=28.5442,77.3340"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex w-full items-center justify-center gap-2 rounded-lg border border-sky-500/40 bg-sky-500/10 py-3 text-xs font-bold text-sky-300"
+                            >
+                                <Navigation className="h-4 w-4" /> Navigate to Unloading Bay
+                            </a>
+
+                            {dropOffDone ? (
+                                <div className="rounded-lg border border-emerald-500/40 bg-emerald-950/30 p-4 text-center text-xs text-emerald-300 font-semibold">
+                                    âœ“ Handover Confirmed â€¢ Shift Payout Released
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => setDropOffDone(true)}
+                                    className="w-full rounded-lg bg-amber-500 py-3 text-xs font-bold text-slate-950 hover:bg-amber-400"
+                                >
+                                    Confirm Final Drum Handover
+                                </button>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+=== FILE: D:\Provene\app\kitchen\page.tsx ===
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { supabase, Kitchen, Collection } from '@/lib/supabase';
+import {
+    Menu,
+    Store,
+    BellRing,
+    Calendar,
+    Download,
+    Clock,
+    CheckCircle2,
+    Scale,
+    IndianRupee,
+    LogOut,
+    FileCheck,
+} from 'lucide-react';
+
+export default function KitchenEnterprisePortal() {
+    const router = useRouter();
+    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [activePage, setActivePage] = useState<'history' | 'request-pickup' | 'download-ledger'>(
+        'history'
+    );
+
+    const [kitchen, setKitchen] = useState<Kitchen | null>(null);
+    const [collections, setCollections] = useState<Collection[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const [pickupRequested, setPickupRequested] = useState(false);
+    const [estimatedTime, setEstimatedTime] = useState('');
+    const [estOilFullKg, setEstOilFullKg] = useState<number>(35);
+
+    const [startDate, setStartDate] = useState<string>('2026-01-01');
+    const [endDate, setEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
+
+    useEffect(() => {
+        async function loadRestaurantPortal() {
+            setLoading(true);
+            let loggedInKitchenId = 'ALL';
+            if (typeof window !== 'undefined') {
+                const saved = localStorage.getItem('provene_session');
+                if (saved) {
+                    try {
+                        const parsed = JSON.parse(saved);
+                        if (parsed.role === 'KITCHEN' && parsed.id) {
+                            loggedInKitchenId = parsed.id;
+                        }
+                    } catch {
+                        // ignore
+                    }
+                }
+            }
+
+            let currentK: Kitchen | null = null;
+            if (loggedInKitchenId !== 'ALL') {
+                const { data: kRow } = await supabase
+                    .from('kitchens')
+                    .select('*')
+                    .eq('id', loggedInKitchenId)
+                    .maybeSingle();
+                const { data: cRows } = await supabase
+                    .from('collections')
+                    .select('*')
+                    .eq('kitchen_id', loggedInKitchenId)
+                    .order('created_at', { ascending: false });
+                currentK = kRow || null;
+                setCollections(cRows || []);
+            } else {
+                const { data: kRows } = await supabase.from('kitchens').select('*').limit(1);
+                const { data: cRows } = await supabase
+                    .from('collections')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+                currentK = kRows?.[0] || null;
+                setCollections(cRows || []);
+            }
+
+            if (currentK) {
+                setKitchen(currentK);
+                setEstOilFullKg(currentK.weekly_est_uco_kg || 35);
+                if (currentK.pickup_requested) {
+                    setPickupRequested(true);
+                    setEstimatedTime(currentK.pickup_eta || 'Today within 45â€“60 mins');
+                }
+            }
+            setLoading(false);
+        }
+        loadRestaurantPortal();
+    }, []);
+
+    const handleRequestPickup = async () => {
+        const etaString = `Today at ${new Date(Date.now() + 50 * 60000).toLocaleTimeString('en-IN', {
+            hour: '2-digit',
+            minute: '2-digit',
+        })} (~50 mins)`;
+
+        setPickupRequested(true);
+        setEstimatedTime(etaString);
+
+        if (kitchen) {
+            await supabase
+                .from('kitchens')
+                .update({ pickup_requested: true, pickup_eta: etaString })
+                .eq('id', kitchen.id);
+        }
+    };
+
+    const handleDownloadFssaiLedger = () => {
+        const startObj = new Date(startDate);
+        startObj.setHours(0, 0, 0, 0);
+        const endObj = new Date(endDate);
+        endObj.setHours(23, 59, 59, 999);
+
+        const filtered = collections.filter((c) => {
+            const d = new Date(c.created_at);
+            return d >= startObj && d <= endObj;
+        });
+
+        const csvRows = [
+            ['OFFICIAL FSSAI USED COOKING OIL (RUCO) DISPOSAL LEDGER'],
+            ['Restaurant Name', kitchen?.name || 'Partner Restaurant'],
+            ['FSSAI License Number', kitchen?.fssai_number || 'Verified'],
+            ['Owner / Manager', kitchen?.owner_name || '-'],
+            ['Registered Address', kitchen?.address || 'Noida'],
+            ['Report Date Range', `${startDate} to ${endDate}`],
+            [],
+            ['Pickup Date & Time', 'Drum ID', 'Oil Weight (kg)', 'Amount Paid (INR)', 'FSSAI Status'],
+            ...filtered.map((c) => [
+                new Date(c.created_at).toLocaleString('en-IN'),
+                c.drum_id,
+                `${c.weight_kg} kg`,
+                `Rs. ${c.payout_inr}`,
+                'Verified & Diverted for Biofuel',
+            ]),
+        ];
+
+        const csvContent = csvRows.map((r) => r.map((cell) => `"${cell}"`).join(',')).join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `FSSAI_Ledger_${(kitchen?.name || 'Outlet').replace(/\s+/g, '_')}_${startDate}_to_${endDate}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    const totalOilKg = collections.reduce((sum, item) => sum + Number(item.weight_kg || 0), 0);
+    const totalEarnedInr = collections.reduce((sum, item) => sum + Number(item.payout_inr || 0), 0);
+
+    return (
+        <div className="flex h-screen w-full overflow-hidden bg-[#090d16] text-slate-100">
+            {/* LEFT COLLAPSIBLE SIDEBAR */}
+            <aside
+                className={`${sidebarOpen ? 'w-60' : 'w-16'
+                    } shrink-0 border-r border-slate-800/80 bg-[#0b101b] flex flex-col justify-between transition-all duration-200`}
+            >
+                <div>
+                    <div className="flex h-14 items-center gap-2.5 border-b border-slate-800/80 px-4">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-slate-950">
+                            <Store className="h-4 w-4" />
+                        </div>
+                        {sidebarOpen && (
+                            <div className="overflow-hidden">
+                                <span className="text-xs font-extrabold text-white block truncate">
+                                    {kitchen?.name || 'KITCHEN PORTAL'}
+                                </span>
+                                <span className="text-[10px] font-mono text-emerald-400 block">
+                                    FSSAI Partner
+                                </span>
+                            </div>
+                        )}
+                    </div>
+
+                    <nav className="p-2.5 space-y-1">
+                        <button
+                            onClick={() => setActivePage('history')}
+                            className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium transition ${activePage === 'history'
+                                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold'
+                                    : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                                }`}
+                        >
+                            <Calendar className="h-4 w-4 shrink-0" />
+                            {sidebarOpen && <span>Pickups & Schedule</span>}
+                        </button>
+
+                        <button
+                            onClick={() => setActivePage('request-pickup')}
+                            className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium transition ${activePage === 'request-pickup'
+                                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold'
+                                    : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                                }`}
+                        >
+                            <BellRing className="h-4 w-4 shrink-0" />
+                            {sidebarOpen && <span>Request Oil Pickup</span>}
+                        </button>
+
+                        <button
+                            onClick={() => setActivePage('download-ledger')}
+                            className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium transition ${activePage === 'download-ledger'
+                                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold'
+                                    : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                                }`}
+                        >
+                            <Download className="h-4 w-4 shrink-0" />
+                            {sidebarOpen && <span>FSSAI Ledger Export</span>}
+                        </button>
+                    </nav>
+                </div>
+
+                <div className="border-t border-slate-800/80 p-3">
+                    <button
+                        onClick={() => {
+                            localStorage.removeItem('provene_session');
+                            router.push('/login');
+                        }}
+                        className="w-full flex items-center justify-center gap-2 rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs font-medium text-slate-400 hover:border-red-500/40 hover:text-red-300"
+                    >
+                        <LogOut className="h-4 w-4 shrink-0" />
+                        {sidebarOpen && <span>Sign Out</span>}
+                    </button>
+                </div>
+            </aside>
+
+            {/* MAIN AREA */}
+            <div className="flex flex-1 flex-col overflow-hidden">
+                <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-800/80 bg-[#0b101b] px-6">
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setSidebarOpen(!sidebarOpen)}
+                            className="rounded-lg border border-slate-800 bg-slate-900 p-2 text-slate-300 hover:text-white"
+                        >
+                            <Menu className="h-4 w-4" />
+                        </button>
+                        <div>
+                            <span className="text-sm font-bold text-white">{kitchen?.name}</span>
+                            <span className="ml-3 font-mono text-xs text-slate-400">
+                                FSSAI: {kitchen?.fssai_number}
+                            </span>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={() => setActivePage('request-pickup')}
+                        className="rounded-lg bg-emerald-500 px-3.5 py-1.5 text-xs font-bold text-slate-950 hover:bg-emerald-400"
+                    >
+                        {pickupRequested ? 'âœ“ Pickup Scheduled' : '+ Request Pickup'}
+                    </button>
+                </header>
+
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {activePage === 'history' && (
+                        <div className="space-y-6">
+                            {pickupRequested && (
+                                <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
+                                    <div className="flex items-center gap-3">
+                                        <Clock className="h-5 w-5 text-amber-400" />
+                                        <div>
+                                            <p className="text-xs font-bold uppercase text-amber-300">
+                                                Scheduled Pickup Active â€¢ Estimated Arrival: {estimatedTime}
+                                            </p>
+                                            <p className="text-xs text-slate-300">
+                                                A Provene collection vehicle has been assigned to your outlet.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <span className="rounded bg-amber-500/20 px-2.5 py-1 font-mono text-[11px] font-bold text-amber-300">
+                                        EN ROUTE
+                                    </span>
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                                <div className="rounded-xl border border-slate-800/90 bg-[#0d1322] p-4">
+                                    <div className="flex items-center justify-between text-[11px] font-semibold uppercase text-slate-400">
+                                        <span>Total Oil Diverted</span>
+                                        <Scale className="h-4 w-4 text-emerald-400" />
+                                    </div>
+                                    <p className="mt-2 font-mono text-2xl font-bold text-white">
+                                        {totalOilKg.toFixed(1)} kg
+                                    </p>
+                                </div>
+
+                                <div className="rounded-xl border border-slate-800/90 bg-[#0d1322] p-4">
+                                    <div className="flex items-center justify-between text-[11px] font-semibold uppercase text-slate-400">
+                                        <span>Verified Pickups</span>
+                                        <FileCheck className="h-4 w-4 text-sky-400" />
+                                    </div>
+                                    <p className="mt-2 font-mono text-2xl font-bold text-white">
+                                        {collections.length}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-xl border border-slate-800/90 bg-[#0d1322] p-4">
+                                    <div className="flex items-center justify-between text-[11px] font-semibold uppercase text-slate-400">
+                                        <span>Total Settlement Received</span>
+                                        <IndianRupee className="h-4 w-4 text-amber-400" />
+                                    </div>
+                                    <p className="mt-2 font-mono text-2xl font-bold text-emerald-400">
+                                        â‚¹{totalEarnedInr.toLocaleString('en-IN')}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="rounded-xl border border-slate-800/90 bg-[#0d1322] overflow-hidden">
+                                <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
+                                    <span className="text-xs font-bold uppercase tracking-wider text-white">
+                                        Completed Oil Pickup Manifest
+                                    </span>
+                                    <button
+                                        onClick={() => setActivePage('download-ledger')}
+                                        className="text-xs font-semibold text-emerald-400 hover:underline"
+                                    >
+                                        Export FSSAI CSV â†’
+                                    </button>
+                                </div>
+
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-xs">
+                                        <thead className="bg-[#0b101b] text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                                            <tr>
+                                                <th className="py-3 px-4">Date & Timestamp</th>
+                                                <th className="py-3 px-4">Drum Seal ID</th>
+                                                <th className="py-3 px-4">Net Oil Weight</th>
+                                                <th className="py-3 px-4">UPI Settlement</th>
+                                                <th className="py-3 px-4">FSSAI Compliance</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-800/60">
+                                            {loading ? (
+                                                <tr>
+                                                    <td colSpan={5} className="py-10 text-center text-slate-500">
+                                                        Loading records...
+                                                    </td>
+                                                </tr>
+                                            ) : collections.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={5} className="py-10 text-center text-slate-500">
+                                                        No pickups completed yet.
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                collections.map((c) => (
+                                                    <tr key={c.id} className="hover:bg-slate-800/30">
+                                                        <td className="py-3 px-4 font-mono text-slate-200">
+                                                            {new Date(c.created_at).toLocaleString('en-IN')}
+                                                        </td>
+                                                        <td className="py-3 px-4 font-mono font-semibold text-sky-400">
+                                                            {c.drum_id}
+                                                        </td>
+                                                        <td className="py-3 px-4 font-mono font-bold text-emerald-400">
+                                                            {c.weight_kg} kg
+                                                        </td>
+                                                        <td className="py-3 px-4 font-mono font-bold text-white">
+                                                            â‚¹{c.payout_inr}
+                                                        </td>
+                                                        <td className="py-3 px-4">
+                                                            <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-400">
+                                                                âœ“ RUCO VERIFIED
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activePage === 'request-pickup' && (
+                        <div className="mx-auto max-w-lg rounded-xl border border-slate-800/90 bg-[#0d1322] p-6 space-y-5">
+                            <div className="border-b border-slate-800 pb-3">
+                                <h2 className="text-base font-bold text-white">
+                                    Schedule Doorstep Collection (Storage Full)
+                                </h2>
+                                <p className="text-xs text-slate-400 mt-0.5">
+                                    Notify Provene dispatch when your storage drum reaches capacity.
+                                </p>
+                            </div>
+
+                            <div className="space-y-3 text-xs">
+                                <div className="flex justify-between rounded-lg border border-slate-800 bg-slate-950 p-3">
+                                    <span className="text-slate-400">Indexed Fryer Capacity:</span>
+                                    <span className="font-mono font-bold text-white">
+                                        {kitchen?.fryer_capacity_liters || 45} Liters
+                                    </span>
+                                </div>
+                                <div>
+                                    <label className="block text-slate-300 mb-1">
+                                        Estimated Oil Volume Ready for Pickup (kg)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={estOilFullKg}
+                                        onChange={(e) => setEstOilFullKg(Number(e.target.value))}
+                                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3.5 py-2.5 font-mono text-sm font-bold text-white"
+                                    />
+                                </div>
+                            </div>
+
+                            {pickupRequested ? (
+                                <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-center space-y-1.5">
+                                    <CheckCircle2 className="h-8 w-8 text-emerald-400 mx-auto" />
+                                    <p className="text-sm font-bold text-white">Pickup Dispatched</p>
+                                    <p className="text-xs text-emerald-300">
+                                        Estimated Collection Window: <strong>{estimatedTime}</strong>
+                                    </p>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={handleRequestPickup}
+                                    className="w-full rounded-lg bg-emerald-500 py-3 text-xs font-bold text-slate-950 hover:bg-emerald-400"
+                                >
+                                    Confirm & Request Immediate Pickup
+                                </button>
+                            )}
+                        </div>
+                    )}
+
+                    {activePage === 'download-ledger' && (
+                        <div className="mx-auto max-w-lg rounded-xl border border-slate-800/90 bg-[#0d1322] p-6 space-y-5">
+                            <div className="border-b border-slate-800 pb-3">
+                                <h2 className="text-base font-bold text-white">
+                                    Export Official FSSAI Disposal Ledger
+                                </h2>
+                                <p className="text-xs text-slate-400 mt-0.5">
+                                    Select a date range to download your audit-ready CSV ledger with restaurant
+                                    details and pickup logs.
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 text-xs">
+                                <div>
+                                    <label className="block text-slate-300 mb-1">Start Date</label>
+                                    <input
+                                        type="date"
+                                        value={startDate}
+                                        onChange={(e) => setStartDate(e.target.value)}
+                                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-slate-300 mb-1">End Date</label>
+                                    <input
+                                        type="date"
+                                        value={endDate}
+                                        onChange={(e) => setEndDate(e.target.value)}
+                                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                                    />
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={handleDownloadFssaiLedger}
+                                className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-500 py-3 text-xs font-bold text-slate-950 hover:bg-emerald-400"
+                            >
+                                <Download className="h-4 w-4" />
+                                Download Official FSSAI Ledger (.CSV)
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+=== FILE: D:\Provene\app\login\page.tsx ===
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
+import {
+    ShieldCheck,
+    Lock,
+    UserCheck,
+    ArrowRight,
+    AlertCircle,
+} from 'lucide-react';
+
+export default function LoginPage() {
+    const router = useRouter();
+    const [loginId, setLoginId] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+
+        const cleanId = loginId.trim().toLowerCase();
+        const cleanPass = password.trim();
+
+        if (!cleanId || !cleanPass) {
+            setError('Please enter both your Login ID and Password.');
+            return;
+        }
+
+        setLoading(true);
+
+        // 1. Founder Master Login
+        if (
+            (cleanId === 'founder@provene.in' || cleanId === 'master@provene.in') &&
+            cleanPass === 'provene@2026'
+        ) {
+            localStorage.setItem(
+                'provene_session',
+                JSON.stringify({ role: 'OPS_HUB', name: 'Parth Gupta (Founder)', login_id: cleanId })
+            );
+            router.push('/master');
+            return;
+        }
+
+        // 2. Check Internal Company Employees Table -> Routes to Ops Hub (/master)
+        const { data: empData } = await supabase
+            .from('employees')
+            .select('*')
+            .ilike('login_id', cleanId)
+            .eq('password', cleanPass)
+            .maybeSingle();
+
+        if (empData) {
+            localStorage.setItem(
+                'provene_session',
+                JSON.stringify({
+                    role: 'OPS_HUB',
+                    id: empData.id,
+                    name: `${empData.name} (${empData.role})`,
+                    login_id: empData.login_id,
+                })
+            );
+            router.push('/master');
+            return;
+        }
+
+        // 3. Check Onboarded Kitchens Table -> Routes to Restaurant Portal (/kitchen)
+        const { data: kitchenData } = await supabase
+            .from('kitchens')
+            .select('*')
+            .ilike('login_id', cleanId)
+            .eq('password', cleanPass)
+            .maybeSingle();
+
+        if (kitchenData) {
+            localStorage.setItem(
+                'provene_session',
+                JSON.stringify({
+                    role: 'KITCHEN',
+                    id: kitchenData.id,
+                    name: kitchenData.name,
+                    login_id: kitchenData.login_id,
+                })
+            );
+            router.push('/kitchen');
+            return;
+        }
+
+        // Default fallback kitchen login
+        if (cleanId === 'kitchen@provene.in' && cleanPass === 'kitchen123') {
+            localStorage.setItem(
+                'provene_session',
+                JSON.stringify({ role: 'KITCHEN', id: 'ALL', name: 'Partner Restaurant' })
+            );
+            router.push('/kitchen');
+            return;
+        }
+
+        // 4. Check Onboarded Drivers Table -> Routes to Driver Portal (/driver)
+        const { data: driverData } = await supabase
+            .from('drivers')
+            .select('*')
+            .ilike('login_id', cleanId)
+            .eq('password', cleanPass)
+            .maybeSingle();
+
+        if (driverData) {
+            localStorage.setItem(
+                'provene_session',
+                JSON.stringify({
+                    role: 'DRIVER',
+                    id: driverData.id,
+                    name: driverData.name,
+                    employment_type: driverData.employment_type,
+                    aggregator_id: driverData.aggregator_id,
+                    aggregator_name: driverData.aggregator_name,
+                    login_id: driverData.login_id,
+                })
+            );
+            router.push('/driver');
+            return;
+        }
+
+        // Default fallback driver login
+        if (cleanId === 'driver@provene.in' && cleanPass === 'driver123') {
+            localStorage.setItem(
+                'provene_session',
+                JSON.stringify({
+                    role: 'DRIVER',
+                    name: 'Provene Fleet Driver',
+                    employment_type: 'PROVENE_HIRED',
+                    aggregator_name: 'Provene Direct Fleet',
+                })
+            );
+            router.push('/driver');
+            return;
+        }
+
+        setLoading(false);
+        setError('Invalid Login ID or Password. Please check with Provene Ops Hub.');
+    };
+
+    return (
+        <div className="mx-auto max-w-md py-14 text-slate-900">
+            <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm space-y-6">
+                <div className="space-y-2 text-center">
+                    <div className="mx-auto inline-flex items-center gap-2 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-semibold text-emerald-700">
+                        <ShieldCheck className="h-4 w-4" />
+                        Provene Portal Access
+                    </div>
+                    <h1 className="text-2xl font-extrabold text-slate-900">
+                        Sign In to Your Account
+                    </h1>
+                    <p className="text-xs text-slate-500">
+                        Enter your assigned Login ID and password to open your workspace.
+                    </p>
+                </div>
+
+                {error && (
+                    <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-700">
+                        <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                        <span>{error}</span>
+                    </div>
+                )}
+
+                <form onSubmit={handleLogin} className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                            Login ID *
+                        </label>
+                        <div className="relative">
+                            <UserCheck className="h-4 w-4 text-slate-400 absolute left-3.5 top-3" />
+                            <input
+                                type="text"
+                                required
+                                value={loginId}
+                                onChange={(e) => setLoginId(e.target.value)}
+                                placeholder="Enter your Login ID"
+                                className="w-full rounded-xl border border-slate-300 bg-slate-50 pl-10 pr-4 py-2.5 text-sm text-slate-900 focus:border-emerald-600 focus:bg-white focus:outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                            Password *
+                        </label>
+                        <div className="relative">
+                            <Lock className="h-4 w-4 text-slate-400 absolute left-3.5 top-3" />
+                            <input
+                                type="password"
+                                required
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                                className="w-full rounded-xl border border-slate-300 bg-slate-50 pl-10 pr-4 py-2.5 text-sm text-slate-900 focus:border-emerald-600 focus:bg-white focus:outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                        {loading ? 'Signing In...' : 'Login'} <ArrowRight className="h-4 w-4" />
+                    </button>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+=== FILE: D:\Provene\app\master\page.tsx ===
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  supabase,
+  Kitchen,
+  Collection,
+  Aggregator,
+  Driver,
+  Employee,
+} from '@/lib/supabase';
+import {
+  Menu,
+  X,
+  ShieldCheck,
+  LayoutDashboard,
+  Store,
+  Truck,
+  Building2,
+  Users,
+  LogOut,
+  Plus,
+  Search,
+  RefreshCw,
+  MapPin,
+  KeyRound,
+  Trash2,
+  CheckCircle2,
+  ArrowUpRight,
+  Droplets,
+  IndianRupee,
+  BellRing,
+  Eye,
+} from 'lucide-react';
+
+type ModuleTab = 'overview' | 'kitchens' | 'drivers' | 'aggregators' | 'employees';
+type DrawerType = 'NONE' | 'ADD_KITCHEN' | 'ADD_DRIVER' | 'ADD_AGGREGATOR' | 'ADD_EMPLOYEE';
+
+const CLUSTER_PRESETS = [
+  { label: 'Sector 126', lat: 28.5442, lng: 77.334, address: 'Main Market, Sector 126, Noida' },
+  { label: 'Sector 104', lat: 28.5389, lng: 77.3688, address: 'Commercial Market, Sector 104, Noida' },
+  { label: 'Sector 76', lat: 28.5672, lng: 77.3792, address: 'Central Food Market, Sector 76, Noida' },
+];
+
+export default function ProveneEnterpriseOpsHub() {
+  const router = useRouter();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [activeTab, setActiveTab] = useState<ModuleTab>('overview');
+  const [activeDrawer, setActiveDrawer] = useState<DrawerType>('NONE');
+  const [inspectedCollection, setInspectedCollection] = useState<Collection | null>(null);
+
+  const [operatorName, setOperatorName] = useState('Parth Gupta');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sectorFilter, setSectorFilter] = useState('ALL');
+  const [toast, setToast] = useState('');
+
+  // Database State
+  const [kitchens, setKitchens] = useState<Kitchen[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [aggregators, setAggregators] = useState<Aggregator[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+
+  // Form States (Used inside Slide-Over Drawers)
+  const [kName, setKName] = useState('');
+  const [kOwner, setKOwner] = useState('');
+  const [kPhone, setKPhone] = useState('');
+  const [kFssai, setKFssai] = useState('');
+  const [kFryer, setKFryer] = useState<number>(45);
+  const [kAddress, setKAddress] = useState('Main Market, Sector 126, Noida');
+  const [kLat, setKLat] = useState<number>(28.5442);
+  const [kLng, setKLng] = useState<number>(77.334);
+  const [kLoginId, setKLoginId] = useState('');
+  const [kPassword, setKPassword] = useState('');
+
+  const [dName, setDName] = useState('');
+  const [dPhone, setDPhone] = useState('');
+  const [dVehicle, setDVehicle] = useState('');
+  const [dLicense, setDLicense] = useState('');
+  const [dType, setDType] = useState<'PROVENE_HIRED' | 'THIRD_PARTY'>('PROVENE_HIRED');
+  const [dAggregatorId, setDAggregatorId] = useState('');
+  const [dLoginId, setDLoginId] = useState('');
+  const [dPassword, setDPassword] = useState('');
+
+  const [aCompany, setACompany] = useState('');
+  const [aContact, setAContact] = useState('');
+  const [aPhone, setAPhone] = useState('');
+  const [aGst, setAGst] = useState('');
+  const [aMinCap, setAMinCap] = useState<number>(200);
+  const [aMaxCap, setAMaxCap] = useState<number>(5000);
+  const [aRate, setARate] = useState<number>(48);
+
+  const [eName, setEName] = useState('');
+  const [eRole, setERole] = useState('Operations Manager');
+  const [ePhone, setEPhone] = useState('');
+  const [eLoginId, setELoginId] = useState('');
+  const [ePassword, setEPassword] = useState('');
+
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapInstanceRef = useRef<unknown>(null);
+
+  async function fetchAllData() {
+    const [kRes, cRes, aRes, dRes, eRes] = await Promise.all([
+      supabase.from('kitchens').select('*').order('created_at', { ascending: false }),
+      supabase.from('collections').select('*').order('created_at', { ascending: false }),
+      supabase.from('aggregators').select('*').order('created_at', { ascending: false }),
+      supabase.from('drivers').select('*').order('created_at', { ascending: false }),
+      supabase.from('employees').select('*').order('created_at', { ascending: false }),
+    ]);
+
+    setKitchens(kRes.data || []);
+    setCollections(cRes.data || []);
+    setAggregators(aRes.data || []);
+    setDrivers(dRes.data || []);
+    setEmployees(eRes.data || []);
+    if (aRes.data && aRes.data.length > 0 && !dAggregatorId) {
+      setDAggregatorId(aRes.data[0].id);
+    }
+  }
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('provene_session');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.name) setOperatorName(parsed.name);
+        } catch {
+          // ignore
+        }
+      }
+    }
+    fetchAllData();
+  }, []);
+
+  // Initialize Leaflet Map on Overview Tab
+  useEffect(() => {
+    if (activeTab !== 'overview' || typeof window === 'undefined' || !mapContainerRef.current)
+      return;
+
+    if (!document.getElementById('leaflet-css')) {
+      const link = document.createElement('link');
+      link.id = 'leaflet-css';
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+
+    const initMap = () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const L = (window as any).L;
+      if (!L || !mapContainerRef.current) return;
+
+      if (mapInstanceRef.current) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (mapInstanceRef.current as any).remove();
+      }
+
+      const map = L.map(mapContainerRef.current).setView([28.5505, 77.361], 12);
+      mapInstanceRef.current = map;
+
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap',
+        maxZoom: 19,
+      }).addTo(map);
+
+      const bounds: [number, number][] = [];
+      const visibleKitchens =
+        sectorFilter === 'ALL'
+          ? kitchens
+          : kitchens.filter((k) => k.address.toLowerCase().includes(sectorFilter.toLowerCase()));
+
+      visibleKitchens.forEach((k) => {
+        bounds.push([k.lat, k.lng]);
+        const isUrgent = Boolean(k.pickup_requested);
+        const marker = L.circleMarker([k.lat, k.lng], {
+          radius: isUrgent ? 10 : 8,
+          fillColor: isUrgent ? '#f59e0b' : '#10b981',
+          color: '#090d16',
+          weight: 2,
+          opacity: 1,
+          fillOpacity: 0.95,
+        }).addTo(map);
+
+        marker.bindPopup(
+          `<div style="color:#0f172a;font-family:sans-serif;font-size:12px;line-height:1.4;">
+            <strong>${k.name}</strong><br/>
+            <span style="color:#475569;">${k.address}</span><br/>
+            <span>Fryer: <b>${k.fryer_capacity_liters}L</b> â€¢ FSSAI: ${k.fssai_number}</span>
+          </div>`
+        );
+      });
+
+      if (bounds.length > 0) {
+        map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
+      }
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((window as any).L) {
+      setTimeout(initMap, 60);
+    } else {
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.onload = initMap;
+      document.body.appendChild(script);
+    }
+  }, [activeTab, kitchens, sectorFilter]);
+
+  const notify = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 3500);
+  };
+
+  // Drawer Submit Handlers
+  const handleCreateKitchen = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const weeklyEst = Number((kFryer * 0.85).toFixed(1));
+    const { error } = await supabase.from('kitchens').insert([
+      {
+        name: kName,
+        owner_name: kOwner,
+        phone: kPhone,
+        fssai_number: kFssai,
+        fryer_capacity_liters: Number(kFryer),
+        weekly_est_uco_kg: weeklyEst,
+        lat: Number(kLat),
+        lng: Number(kLng),
+        address: kAddress,
+        login_id: kLoginId.trim().toLowerCase(),
+        password: kPassword.trim(),
+        iscc_declared: true,
+      },
+    ]);
+
+    if (!error) {
+      notify(`Onboarded ${kName} (${kLoginId})`);
+      setKName('');
+      setKOwner('');
+      setKPhone('');
+      setKFssai('');
+      setKLoginId('');
+      setKPassword('');
+      setActiveDrawer('NONE');
+      await fetchAllData();
+    } else {
+      alert(error.message);
+    }
+  };
+
+  const handleCreateDriver = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const chosenAgg = aggregators.find((a) => a.id === dAggregatorId);
+    const aggName =
+      dType === 'PROVENE_HIRED'
+        ? 'Provene Direct Fleet'
+        : chosenAgg?.company_name || 'Third-Party Aggregator';
+
+    const { error } = await supabase.from('drivers').insert([
+      {
+        name: dName,
+        phone: dPhone,
+        vehicle_number: dVehicle,
+        license_number: dLicense,
+        employment_type: dType,
+        aggregator_id: dType === 'THIRD_PARTY' && dAggregatorId ? dAggregatorId : null,
+        aggregator_name: aggName,
+        login_id: dLoginId.trim().toLowerCase(),
+        password: dPassword.trim(),
+      },
+    ]);
+
+    if (!error) {
+      notify(`Registered Driver ${dName} (${dLoginId})`);
+      setDName('');
+      setDPhone('');
+      setDVehicle('');
+      setDLicense('');
+      setDLoginId('');
+      setDPassword('');
+      setActiveDrawer('NONE');
+      await fetchAllData();
+    } else {
+      alert(error.message);
+    }
+  };
+
+  const handleCreateAggregator = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { error } = await supabase.from('aggregators').insert([
+      {
+        company_name: aCompany,
+        contact_person: aContact,
+        phone: aPhone,
+        gst_or_license: aGst,
+        min_capacity_kg: Number(aMinCap),
+        max_capacity_kg: Number(aMaxCap),
+        rate_per_kg: Number(aRate),
+        oil_bought_kg: 0,
+      },
+    ]);
+
+    if (!error) {
+      notify(`Registered Buyer ${aCompany}`);
+      setACompany('');
+      setAContact('');
+      setAPhone('');
+      setAGst('');
+      setActiveDrawer('NONE');
+      await fetchAllData();
+    } else {
+      alert(error.message);
+    }
+  };
+
+  const handleDispatchBatchToBuyer = async (agg: Aggregator) => {
+    const input = window.prompt(
+      `Dispatch Oil Batch to ${agg.company_name} (Min Lot: ${agg.min_capacity_kg} kg):`,
+      String(agg.min_capacity_kg)
+    );
+    if (!input) return;
+    const kg = Number(input);
+    if (isNaN(kg) || kg <= 0) return;
+
+    await supabase
+      .from('aggregators')
+      .update({ oil_bought_kg: Number(agg.oil_bought_kg || 0) + kg })
+      .eq('id', agg.id);
+    notify(`Dispatched ${kg} kg to ${agg.company_name}`);
+    await fetchAllData();
+  };
+
+  const handleCreateEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { error } = await supabase.from('employees').insert([
+      {
+        name: eName,
+        role: eRole,
+        phone: ePhone,
+        login_id: eLoginId.trim().toLowerCase(),
+        password: ePassword.trim(),
+      },
+    ]);
+
+    if (!error) {
+      notify(`Added Team Member ${eName} (${eLoginId})`);
+      setEName('');
+      setEPhone('');
+      setELoginId('');
+      setEPassword('');
+      setActiveDrawer('NONE');
+      await fetchAllData();
+    } else {
+      alert(error.message);
+    }
+  };
+
+  // Operational & Financial Metrics
+  const totalCollectedKg = collections.reduce((s, c) => s + Number(c.weight_kg || 0), 0);
+  const totalProcurementCost = collections.reduce((s, c) => s + Number(c.payout_inr || 0), 0);
+  const totalDispatchedKg = aggregators.reduce((s, a) => s + Number(a.oil_bought_kg || 0), 0);
+  const hubTankInventoryKg = Math.max(0, totalCollectedKg - totalDispatchedKg);
+  const estRevenueInr = Math.round(totalCollectedKg * 48);
+  const netMarginInr = estRevenueInr - totalProcurementCost;
+  const urgentRequests = kitchens.filter((k) => k.pickup_requested);
+
+  const navItems: { id: ModuleTab; label: string; count?: number; icon: typeof LayoutDashboard }[] =
+    [
+      { id: 'overview', label: 'Command Overview', icon: LayoutDashboard },
+      { id: 'kitchens', label: 'Kitchen Network', count: kitchens.length, icon: Store },
+      { id: 'drivers', label: 'Fleet & Drivers', count: drivers.length, icon: Truck },
+      { id: 'aggregators', label: 'Refinery Buyers', count: aggregators.length, icon: Building2 },
+      { id: 'employees', label: 'Team & IAM', count: employees.length + 1, icon: Users },
+    ];
+
+  return (
+    <div className="flex h-screen w-full overflow-hidden bg-[#090d16] text-slate-100">
+      {/* LEFT ENTERPRISE SIDEBAR (Collapsible via 3-Line Menu) */}
+      <aside
+        className={`${sidebarOpen ? 'w-60' : 'w-16'
+          } shrink-0 border-r border-slate-800/80 bg-[#0b101b] flex flex-col justify-between transition-all duration-200 z-30`}
+      >
+        <div>
+          {/* Brand Logo Bar */}
+          <div className="flex h-14 items-center justify-between border-b border-slate-800/80 px-4">
+            <div className="flex items-center gap-2.5 overflow-hidden">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-slate-950 font-black">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              {sidebarOpen && (
+                <div className="leading-none">
+                  <span className="text-sm font-extrabold tracking-tight text-white block">
+                    PROVENE
+                  </span>
+                  <span className="text-[10px] font-mono text-emerald-400">OPS HUB v2.4</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Navigation Links */}
+          <nav className="p-2.5 space-y-1">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  title={item.label}
+                  className={`w-full flex items-center justify-between rounded-lg px-3 py-2.5 text-xs font-medium transition ${active
+                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold'
+                      : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 border border-transparent'
+                    }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {sidebarOpen && <span>{item.label}</span>}
+                  </div>
+                  {sidebarOpen && item.count !== undefined && (
+                    <span className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-[10px] text-slate-300">
+                      {item.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Operator Footer & Logout */}
+        <div className="border-t border-slate-800/80 p-3 space-y-2">
+          {sidebarOpen && (
+            <div className="rounded-lg bg-slate-900/90 px-3 py-2 border border-slate-800/80">
+              <p className="text-xs font-semibold text-white truncate">{operatorName}</p>
+              <p className="text-[10px] text-emerald-400 font-mono">Noida Cluster Admin</p>
+            </div>
+          )}
+          <button
+            onClick={() => {
+              localStorage.removeItem('provene_session');
+              router.push('/login');
+            }}
+            className="w-full flex items-center justify-center gap-2 rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs font-medium text-slate-400 hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300 transition"
+          >
+            <LogOut className="h-4 w-4 shrink-0" />
+            {sidebarOpen && <span>Sign Out</span>}
+          </button>
+        </div>
+      </aside>
+
+      {/* MAIN CONTENT SHELL */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {/* TOP ENTERPRISE COMMAND BAR */}
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-800/80 bg-[#0b101b] px-6">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="rounded-lg border border-slate-800 bg-slate-900 p-2 text-slate-300 hover:border-slate-700 hover:text-white"
+              title="Toggle Sidebar"
+            >
+              <Menu className="h-4 w-4" />
+            </button>
+
+            <div className="relative hidden sm:block w-72">
+              <Search className="h-3.5 w-3.5 text-slate-500 absolute left-3 top-2.5" />
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search kitchens, drums, drivers, FSSAI..."
+                className="w-full rounded-lg border border-slate-800 bg-slate-950 pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {urgentRequests.length > 0 && (
+              <button
+                onClick={() => setActiveTab('kitchens')}
+                className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300"
+              >
+                <BellRing className="h-3.5 w-3.5 animate-bounce" />
+                {urgentRequests.length} Pickup Request{urgentRequests.length > 1 ? 's' : ''}
+              </button>
+            )}
+
+            <div className="hidden md:flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-300">
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              <span>Noida Hub (Sec 126 â€¢ 104 â€¢ 76)</span>
+            </div>
+
+            <button
+              onClick={fetchAllData}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-800"
+            >
+              <RefreshCw className="h-3.5 w-3.5" /> Sync
+            </button>
+          </div>
+        </header>
+
+        {/* SCROLLABLE WORKSPACE CANVAS */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {toast && (
+            <div className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2.5 text-xs font-semibold text-emerald-300">
+              <CheckCircle2 className="h-4 w-4" />
+              {toast}
+            </div>
+          )}
+
+          {/* MODULE 1: COMMAND OVERVIEW */}
+          {activeTab === 'overview' && (
+            <div className="space-y-6">
+              {/* Top Action Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-lg font-bold text-white">
+                    Supply Chain Telemetry & Dispatch Radar
+                  </h1>
+                  <p className="text-xs text-slate-400">
+                    Real-time inventory, unit economics, and collection verification across Noida
+                    clusters.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setActiveDrawer('ADD_KITCHEN')}
+                    className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3.5 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-400"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Onboard Kitchen
+                  </button>
+                  <button
+                    onClick={() => setActiveDrawer('ADD_DRIVER')}
+                    className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add Driver
+                  </button>
+                </div>
+              </div>
+
+              {/* High-Density Unit Economics & Telemetry Strip */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-xl border border-slate-800/90 bg-[#0d1322] p-4">
+                  <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    <span>Hub Tank Inventory</span>
+                    <Droplets className="h-4 w-4 text-emerald-400" />
+                  </div>
+                  <p className="mt-2 font-mono text-2xl font-bold text-white tabular-nums">
+                    {hubTankInventoryKg.toFixed(1)}{' '}
+                    <span className="text-sm font-normal text-slate-400">kg</span>
+                  </p>
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
+                    <span>Gross Collected: {totalCollectedKg.toFixed(1)} kg</span>
+                    <span className="text-emerald-400">{collections.length} Drums</span>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-800/90 bg-[#0d1322] p-4">
+                  <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    <span>Kitchen Payouts (@ â‚¹36/kg)</span>
+                    <IndianRupee className="h-4 w-4 text-sky-400" />
+                  </div>
+                  <p className="mt-2 font-mono text-2xl font-bold text-white tabular-nums">
+                    â‚¹{totalProcurementCost.toLocaleString('en-IN')}
+                  </p>
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
+                    <span>Active Outlets: {kitchens.length}</span>
+                    <span className="text-sky-400">UPI Settled</span>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-800/90 bg-[#0d1322] p-4">
+                  <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    <span>Projected Gross Margin</span>
+                    <ArrowUpRight className="h-4 w-4 text-emerald-400" />
+                  </div>
+                  <p className="mt-2 font-mono text-2xl font-bold text-emerald-400 tabular-nums">
+                    +â‚¹{netMarginInr.toLocaleString('en-IN')}
+                  </p>
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
+                    <span>Est. Offtake Value: â‚¹{estRevenueInr.toLocaleString('en-IN')}</span>
+                    <span className="text-emerald-400">~25% Spread</span>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-800/90 bg-[#0d1322] p-4">
+                  <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    <span>Active Dispatch Queue</span>
+                    <Truck className="h-4 w-4 text-amber-400" />
+                  </div>
+                  <p className="mt-2 font-mono text-2xl font-bold text-white tabular-nums">
+                    {urgentRequests.length}{' '}
+                    <span className="text-sm font-normal text-amber-400">Priority Stops</span>
+                  </p>
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
+                    <span>Fleet Size: {drivers.length} Drivers</span>
+                    <span className="text-amber-400">{aggregators.length} Buyers</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Split View: Geospatial Cluster Radar (5 cols) + Collection Manifest Table (7 cols) */}
+              <div className="grid gap-6 lg:grid-cols-12">
+                {/* Geospatial Radar */}
+                <div className="lg:col-span-5 rounded-xl border border-slate-800/90 bg-[#0d1322] flex flex-col justify-between overflow-hidden">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-emerald-400" />
+                      <span className="text-xs font-bold uppercase tracking-wider text-white">
+                        Cluster Geospatial Radar
+                      </span>
+                    </div>
+
+                    <div className="flex gap-1">
+                      {['ALL', 'Sector 126', 'Sector 104', 'Sector 76'].map((sec) => (
+                        <button
+                          key={sec}
+                          onClick={() => setSectorFilter(sec)}
+                          className={`rounded px-2 py-0.5 text-[10px] font-semibold transition ${sectorFilter === sec
+                              ? 'bg-emerald-500 text-slate-950'
+                              : 'bg-slate-900 text-slate-400 hover:text-white'
+                            }`}
+                        >
+                          {sec === 'ALL' ? 'All' : sec.replace('Sector ', 'S')}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div
+                    ref={mapContainerRef}
+                    className="h-[370px] w-full bg-slate-950 z-0 [&_.leaflet-tile-pane]:invert [&_.leaflet-tile-pane]:hue-rotate-180 [&_.leaflet-tile-pane]:brightness-95 [&_.leaflet-tile-pane]:contrast-90"
+                  />
+
+                  <div className="flex items-center justify-between border-t border-slate-800 px-4 py-2.5 text-[11px] text-slate-400">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400" /> Standard Partner
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-amber-400" /> Pickup Requested (Full)
+                    </span>
+                  </div>
+                </div>
+
+                {/* High-Density Collection Manifest Table */}
+                <div className="lg:col-span-7 rounded-xl border border-slate-800/90 bg-[#0d1322] overflow-hidden flex flex-col">
+                  <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
+                    <div>
+                      <span className="text-xs font-bold uppercase tracking-wider text-white">
+                        Live Collection Manifest
+                      </span>
+                      <span className="ml-2 rounded bg-slate-800 px-2 py-0.5 font-mono text-[10px] text-slate-300">
+                        {collections.length} batches
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-400">
+                      Click &quot;Inspect Key&quot; to view private batch hash
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto flex-1 max-h-[395px]">
+                    <table className="w-full text-left text-xs">
+                      <thead className="sticky top-0 bg-[#0b101b] text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                        <tr>
+                          <th className="py-2.5 px-3">Drum ID</th>
+                          <th className="py-2.5 px-3">Kitchen Outlet</th>
+                          <th className="py-2.5 px-3">Driver / Fleet</th>
+                          <th className="py-2.5 px-3 text-right">Net Wt</th>
+                          <th className="py-2.5 px-3 text-right">Payout</th>
+                          <th className="py-2.5 px-3 text-right">Security</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60">
+                        {collections.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="py-12 text-center text-slate-500">
+                              No oil collections logged yet.
+                            </td>
+                          </tr>
+                        ) : (
+                          collections.map((c) => (
+                            <tr key={c.id} className="hover:bg-slate-800/30 transition">
+                              <td className="py-2.5 px-3 font-mono font-semibold text-sky-400">
+                                {c.drum_id}
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <p className="font-semibold text-slate-200">{c.kitchen_name}</p>
+                                <p className="text-[10px] text-slate-500">
+                                  {new Date(c.created_at).toLocaleString('en-IN')}
+                                </p>
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <p className="text-slate-300">{c.driver_name || 'Fleet Driver'}</p>
+                                <p className="text-[10px] text-slate-500">
+                                  {c.aggregator_name || 'Provene Direct'}
+                                </p>
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-400 tabular-nums">
+                                {c.weight_kg} kg
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono text-slate-200 tabular-nums">
+                                â‚¹{c.payout_inr}
+                              </td>
+                              <td className="py-2.5 px-3 text-right">
+                                <button
+                                  onClick={() => setInspectedCollection(c)}
+                                  className="inline-flex items-center gap-1 rounded border border-purple-500/30 bg-purple-500/10 px-2 py-1 text-[10px] font-semibold text-purple-300 hover:bg-purple-500/20"
+                                >
+                                  <Eye className="h-3 w-3" /> Inspect Key
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* MODULE 2: KITCHEN NETWORK TABLE */}
+          {activeTab === 'kitchens' && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-lg font-bold text-white">
+                    Partner Kitchen Network ({kitchens.length})
+                  </h1>
+                  <p className="text-xs text-slate-400">
+                    Manage commercial restaurant accounts, FSSAI licenses, pickup requests, and
+                    portal login credentials.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setActiveDrawer('ADD_KITCHEN')}
+                  className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-400"
+                >
+                  <Plus className="h-4 w-4" /> Onboard New Kitchen
+                </button>
+              </div>
+
+              <div className="rounded-xl border border-slate-800/90 bg-[#0d1322] overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#0b101b] text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                      <tr>
+                        <th className="py-3 px-4">Restaurant & Address</th>
+                        <th className="py-3 px-4">Owner & Contact</th>
+                        <th className="py-3 px-4">FSSAI License</th>
+                        <th className="py-3 px-4">Fryer Cap</th>
+                        <th className="py-3 px-4">Pickup Status</th>
+                        <th className="py-3 px-4">Total Collected</th>
+                        <th className="py-3 px-4">Portal Login ID / Pass</th>
+                        <th className="py-3 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {kitchens
+                        .filter(
+                          (k) =>
+                            k.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            k.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            k.fssai_number.includes(searchQuery)
+                        )
+                        .map((k) => {
+                          const kPickups = collections.filter((c) => c.kitchen_id === k.id);
+                          const kTotalKg = kPickups.reduce(
+                            (s, c) => s + Number(c.weight_kg || 0),
+                            0
+                          );
+                          return (
+                            <tr key={k.id} className="hover:bg-slate-800/30">
+                              <td className="py-3 px-4">
+                                <p className="font-bold text-white">{k.name}</p>
+                                <p className="text-[11px] text-slate-400">{k.address}</p>
+                              </td>
+                              <td className="py-3 px-4">
+                                <p className="text-slate-200">{k.owner_name}</p>
+                                <p className="font-mono text-[11px] text-slate-400">{k.phone}</p>
+                              </td>
+                              <td className="py-3 px-4 font-mono text-slate-300">
+                                {k.fssai_number}
+                              </td>
+                              <td className="py-3 px-4 font-mono text-slate-300">
+                                {k.fryer_capacity_liters} L
+                              </td>
+                              <td className="py-3 px-4">
+                                {k.pickup_requested ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-bold text-amber-300">
+                                    â— DRUM FULL (REQUESTED)
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-400">
+                                    â— ACTIVE
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 font-mono font-bold text-emerald-400">
+                                {kTotalKg.toFixed(1)} kg ({kPickups.length})
+                              </td>
+                              <td className="py-3 px-4 font-mono text-[11px] text-sky-400">
+                                {k.login_id || 'kitchen@provene.in'}
+                                <span className="text-slate-500 block">
+                                  Pass: {k.password || 'kitchen123'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <button
+                                  onClick={async () => {
+                                    if (!confirm(`Delete ${k.name}?`)) return;
+                                    await supabase
+                                      .from('collections')
+                                      .delete()
+                                      .eq('kitchen_id', k.id);
+                                    await supabase.from('kitchens').delete().eq('id', k.id);
+                                    fetchAllData();
+                                  }}
+                                  className="rounded border border-red-500/30 bg-red-500/10 p-1.5 text-red-400 hover:bg-red-500/20"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* MODULE 3: FLEET & DRIVERS TABLE */}
+          {activeTab === 'drivers' && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-lg font-bold text-white">
+                    Fleet & Field Collectors ({drivers.length})
+                  </h1>
+                  <p className="text-xs text-slate-400">
+                    Manage Provene in-house drivers and third-party aggregator collection agents.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setActiveDrawer('ADD_DRIVER')}
+                  className="flex items-center gap-1.5 rounded-lg bg-sky-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-sky-400"
+                >
+                  <Plus className="h-4 w-4" /> Onboard New Driver
+                </button>
+              </div>
+
+              <div className="rounded-xl border border-slate-800/90 bg-[#0d1322] overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#0b101b] text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                      <tr>
+                        <th className="py-3 px-4">Driver Name & Phone</th>
+                        <th className="py-3 px-4">Vehicle & License</th>
+                        <th className="py-3 px-4">Fleet Classification</th>
+                        <th className="py-3 px-4">Assigned Buyer / Hub</th>
+                        <th className="py-3 px-4">Volume Collected</th>
+                        <th className="py-3 px-4">App Login ID / Pass</th>
+                        <th className="py-3 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {drivers.map((d) => {
+                        const dRuns = collections.filter((c) => c.driver_name === d.name);
+                        const dKg = dRuns.reduce((s, c) => s + Number(c.weight_kg || 0), 0);
+                        return (
+                          <tr key={d.id} className="hover:bg-slate-800/30">
+                            <td className="py-3 px-4">
+                              <p className="font-bold text-white">{d.name}</p>
+                              <p className="font-mono text-[11px] text-slate-400">{d.phone}</p>
+                            </td>
+                            <td className="py-3 px-4">
+                              <p className="font-mono font-semibold text-slate-200">
+                                {d.vehicle_number}
+                              </p>
+                              <p className="font-mono text-[10px] text-slate-500">
+                                DL: {d.license_number}
+                              </p>
+                            </td>
+                            <td className="py-3 px-4">
+                              {d.employment_type === 'PROVENE_HIRED' ? (
+                                <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-400">
+                                  IN-HOUSE FLEET
+                                </span>
+                              ) : (
+                                <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-amber-300">
+                                  3PL AGGREGATOR
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-slate-300">{d.aggregator_name}</td>
+                            <td className="py-3 px-4 font-mono font-bold text-emerald-400">
+                              {dKg.toFixed(1)} kg ({dRuns.length} stops)
+                            </td>
+                            <td className="py-3 px-4 font-mono text-[11px] text-sky-400">
+                              {d.login_id}
+                              <span className="text-slate-500 block">Pass: {d.password}</span>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <button
+                                onClick={async () => {
+                                  await supabase.from('drivers').delete().eq('id', d.id);
+                                  fetchAllData();
+                                }}
+                                className="rounded border border-red-500/30 bg-red-500/10 p-1.5 text-red-400 hover:bg-red-500/20"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* MODULE 4: REFINERY BUYERS / AGGREGATORS */}
+          {activeTab === 'aggregators' && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-lg font-bold text-white">
+                    Certified Offtake Buyers & Aggregators ({aggregators.length})
+                  </h1>
+                  <p className="text-xs text-slate-400">
+                    Track minimum lot sizes, monthly offtake capacities, contracted rates, and
+                    assigned 3PL drivers.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setActiveDrawer('ADD_AGGREGATOR')}
+                  className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-amber-400"
+                >
+                  <Plus className="h-4 w-4" /> Register New Buyer
+                </button>
+              </div>
+
+              <div className="rounded-xl border border-slate-800/90 bg-[#0d1322] overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#0b101b] text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                      <tr>
+                        <th className="py-3 px-4">Buyer Company & GST</th>
+                        <th className="py-3 px-4">Procurement Contact</th>
+                        <th className="py-3 px-4">Min / Max Capacity</th>
+                        <th className="py-3 px-4">Contract Rate</th>
+                        <th className="py-3 px-4">Total Oil Purchased</th>
+                        <th className="py-3 px-4">3PL Drivers Under Buyer</th>
+                        <th className="py-3 px-4 text-right">Dispatch</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {aggregators.map((a) => {
+                        const assignedDrivers = drivers.filter((d) => d.aggregator_id === a.id);
+                        const driverKg = collections
+                          .filter((c) => c.aggregator_id === a.id)
+                          .reduce((s, c) => s + Number(c.weight_kg || 0), 0);
+                        const totalBought = Number(a.oil_bought_kg || 0) + driverKg;
+                        const utilization = Math.min(
+                          100,
+                          Math.round((totalBought / (a.max_capacity_kg || 5000)) * 100)
+                        );
+
+                        return (
+                          <tr key={a.id} className="hover:bg-slate-800/30">
+                            <td className="py-3 px-4">
+                              <p className="font-bold text-white">{a.company_name}</p>
+                              <p className="font-mono text-[10px] text-slate-400">
+                                GST: {a.gst_or_license}
+                              </p>
+                            </td>
+                            <td className="py-3 px-4">
+                              <p className="text-slate-200">{a.contact_person}</p>
+                              <p className="font-mono text-[11px] text-slate-400">{a.phone}</p>
+                            </td>
+                            <td className="py-3 px-4 font-mono text-slate-300">
+                              Min: {a.min_capacity_kg} kg
+                              <span className="block text-[10px] text-slate-500">
+                                Max: {a.max_capacity_kg} kg/mo
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 font-mono font-bold text-emerald-400">
+                              â‚¹{a.rate_per_kg}/kg
+                            </td>
+                            <td className="py-3 px-4">
+                              <p className="font-mono font-bold text-amber-400">
+                                {totalBought.toFixed(1)} kg (â‚¹
+                                {Math.round(totalBought * a.rate_per_kg).toLocaleString('en-IN')})
+                              </p>
+                              <div className="mt-1 h-1.5 w-28 rounded-full bg-slate-800 overflow-hidden">
+                                <div
+                                  className="h-full bg-amber-400"
+                                  style={{ width: `${utilization}%` }}
+                                />
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="font-mono font-bold text-sky-400">
+                                {assignedDrivers.length} Drivers
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <button
+                                onClick={() => handleDispatchBatchToBuyer(a)}
+                                className="rounded-lg bg-emerald-500/15 border border-emerald-500/40 px-2.5 py-1 text-[11px] font-bold text-emerald-300 hover:bg-emerald-500/25"
+                              >
+                                + Dispatch Load
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* MODULE 5: TEAM & IAM (EMPLOYEES) */}
+          {activeTab === 'employees' && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-lg font-bold text-white">
+                    Internal Team & Access Management ({employees.length + 1})
+                  </h1>
+                  <p className="text-xs text-slate-400">
+                    Manage internal Provene employees with Ops Hub console access.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setActiveDrawer('ADD_EMPLOYEE')}
+                  className="flex items-center gap-1.5 rounded-lg bg-purple-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-purple-400"
+                >
+                  <Plus className="h-4 w-4" /> Invite Team Member
+                </button>
+              </div>
+
+              <div className="rounded-xl border border-slate-800/90 bg-[#0d1322] overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#0b101b] text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                    <tr>
+                      <th className="py-3 px-4">Employee Name</th>
+                      <th className="py-3 px-4">Role / Department</th>
+                      <th className="py-3 px-4">Phone</th>
+                      <th className="py-3 px-4">Ops Hub Login ID</th>
+                      <th className="py-3 px-4">Password</th>
+                      <th className="py-3 px-4 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    <tr className="bg-purple-950/15">
+                      <td className="py-3 px-4 font-bold text-white">Parth Gupta</td>
+                      <td className="py-3 px-4 text-purple-300 font-semibold">
+                        Founder / Super Admin
+                      </td>
+                      <td className="py-3 px-4 font-mono text-slate-400">Primary Owner</td>
+                      <td className="py-3 px-4 font-mono text-purple-300">founder@provene.in</td>
+                      <td className="py-3 px-4 font-mono text-slate-500">â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢</td>
+                      <td className="py-3 px-4 text-right text-[10px] font-mono text-purple-400">
+                        ROOT
+                      </td>
+                    </tr>
+                    {employees.map((emp) => (
+                      <tr key={emp.id} className="hover:bg-slate-800/30">
+                        <td className="py-3 px-4 font-bold text-white">{emp.name}</td>
+                        <td className="py-3 px-4 text-slate-300">{emp.role}</td>
+                        <td className="py-3 px-4 font-mono text-slate-400">{emp.phone}</td>
+                        <td className="py-3 px-4 font-mono text-emerald-400">{emp.login_id}</td>
+                        <td className="py-3 px-4 font-mono text-slate-300">{emp.password}</td>
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            onClick={async () => {
+                              await supabase.from('employees').delete().eq('id', emp.id);
+                              fetchAllData();
+                            }}
+                            className="rounded border border-red-500/30 bg-red-500/10 p-1.5 text-red-400"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* PRIVATE HASH INSPECTOR MODAL (FOR FOUNDER) */}
+      {inspectedCollection && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+          <div className="w-full max-w-lg rounded-xl border border-slate-800 bg-[#0b101b] p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <KeyRound className="h-4 w-4 text-purple-400" />
+                <span className="text-sm font-bold text-white">
+                  Batch Security Audit â€” {inspectedCollection.drum_id}
+                </span>
+              </div>
+              <button
+                onClick={() => setInspectedCollection(null)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="rounded-lg border border-slate-800 bg-slate-950 p-3">
+                <span className="text-slate-500 block text-[10px]">ORIGIN KITCHEN</span>
+                <span className="font-bold text-white">{inspectedCollection.kitchen_name}</span>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-950 p-3">
+                <span className="text-slate-500 block text-[10px]">VERIFIED WEIGHT & PAYOUT</span>
+                <span className="font-bold text-emerald-400">
+                  {inspectedCollection.weight_kg} kg (â‚¹{inspectedCollection.payout_inr})
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-[10px] font-mono uppercase text-purple-400">
+                Private Founder Hash Key (Hidden from Drivers & Kitchens):
+              </span>
+              <div className="rounded-lg border border-purple-500/30 bg-purple-950/20 p-3 font-mono text-xs text-purple-300 break-all">
+                {inspectedCollection.sha256_hash}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-[10px] font-mono uppercase text-slate-400">
+                Raw Telemetry Payload:
+              </span>
+              <pre className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-950 p-3 font-mono text-[11px] text-slate-300">
+                {inspectedCollection.payload_json}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RIGHT-SIDE SLIDE-OVER DRAWER FOR ALL CREATION WORKFLOWS */}
+      {activeDrawer !== 'NONE' && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div
+            className="fixed inset-0 bg-black/65 backdrop-blur-xs"
+            onClick={() => setActiveDrawer('NONE')}
+          />
+          <div className="relative z-10 w-full max-w-md border-l border-slate-800 bg-[#0b101b] p-6 overflow-y-auto shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <h2 className="text-base font-bold text-white">
+                {activeDrawer === 'ADD_KITCHEN' && 'Onboard Partner Kitchen'}
+                {activeDrawer === 'ADD_DRIVER' && 'Onboard Fleet Driver'}
+                {activeDrawer === 'ADD_AGGREGATOR' && 'Register Offtake Buyer'}
+                {activeDrawer === 'ADD_EMPLOYEE' && 'Invite Internal Employee'}
+              </h2>
+              <button
+                onClick={() => setActiveDrawer('NONE')}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* DRAWER 1: ADD KITCHEN */}
+            {activeDrawer === 'ADD_KITCHEN' && (
+              <form onSubmit={handleCreateKitchen} className="space-y-4 text-xs">
+                <div>
+                  <label className="block text-slate-300 mb-1">Restaurant Name *</label>
+                  <input
+                    required
+                    value={kName}
+                    onChange={(e) => setKName(e.target.value)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 mb-1">Owner Name *</label>
+                    <input
+                      required
+                      value={kOwner}
+                      onChange={(e) => setKOwner(e.target.value)}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 mb-1">Phone *</label>
+                    <input
+                      required
+                      value={kPhone}
+                      onChange={(e) => setKPhone(e.target.value)}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 mb-1">14-Digit FSSAI *</label>
+                    <input
+                      required
+                      value={kFssai}
+                      onChange={(e) => setKFssai(e.target.value)}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 mb-1">Fryer Capacity (L) *</label>
+                    <input
+                      type="number"
+                      required
+                      value={kFryer}
+                      onChange={(e) => setKFryer(Number(e.target.value))}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-slate-300 mb-1">Cluster Location Preset</label>
+                  <div className="flex gap-2">
+                    {CLUSTER_PRESETS.map((p) => (
+                      <button
+                        key={p.label}
+                        type="button"
+                        onClick={() => {
+                          setKLat(p.lat);
+                          setKLng(p.lng);
+                          setKAddress(p.address);
+                        }}
+                        className="rounded border border-slate-700 bg-slate-900 px-2.5 py-1 text-[11px] text-slate-300 hover:border-emerald-500"
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-slate-300 mb-1">Street Address *</label>
+                  <input
+                    required
+                    value={kAddress}
+                    onChange={(e) => setKAddress(e.target.value)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                  />
+                </div>
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-950/20 p-3 space-y-3">
+                  <span className="font-bold text-emerald-400 block">
+                    Assign Restaurant Portal Credentials
+                  </span>
+                  <div>
+                    <label className="block text-slate-300 mb-1">Login ID *</label>
+                    <input
+                      required
+                      value={kLoginId}
+                      onChange={(e) => setKLoginId(e.target.value)}
+                      placeholder="outlet@provene.in"
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 mb-1">Password *</label>
+                    <input
+                      required
+                      value={kPassword}
+                      onChange={(e) => setKPassword(e.target.value)}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                    />
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  className="w-full rounded-lg bg-emerald-500 py-3 font-bold text-slate-950 hover:bg-emerald-400"
+                >
+                  Save & Activate Kitchen
+                </button>
+              </form>
+            )}
+
+            {/* DRAWER 2: ADD DRIVER */}
+            {activeDrawer === 'ADD_DRIVER' && (
+              <form onSubmit={handleCreateDriver} className="space-y-4 text-xs">
+                <div>
+                  <label className="block text-slate-300 mb-1">Driver Full Name *</label>
+                  <input
+                    required
+                    value={dName}
+                    onChange={(e) => setDName(e.target.value)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 mb-1">Phone *</label>
+                    <input
+                      required
+                      value={dPhone}
+                      onChange={(e) => setDPhone(e.target.value)}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 mb-1">Vehicle Number *</label>
+                    <input
+                      required
+                      value={dVehicle}
+                      onChange={(e) => setDVehicle(e.target.value)}
+                      placeholder="UP16 AB 4921"
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-slate-300 mb-1">Driving License Number *</label>
+                  <input
+                    required
+                    value={dLicense}
+                    onChange={(e) => setDLicense(e.target.value)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-slate-300">Fleet Classification *</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDType('PROVENE_HIRED')}
+                      className={`rounded-lg border py-2 font-bold ${dType === 'PROVENE_HIRED'
+                          ? 'border-emerald-500 bg-emerald-500/15 text-emerald-300'
+                          : 'border-slate-800 text-slate-400'
+                        }`}
+                    >
+                      Provene In-House
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDType('THIRD_PARTY')}
+                      className={`rounded-lg border py-2 font-bold ${dType === 'THIRD_PARTY'
+                          ? 'border-amber-500 bg-amber-500/15 text-amber-300'
+                          : 'border-slate-800 text-slate-400'
+                        }`}
+                    >
+                      3PL Aggregator
+                    </button>
+                  </div>
+                  {dType === 'THIRD_PARTY' && (
+                    <select
+                      value={dAggregatorId}
+                      onChange={(e) => setDAggregatorId(e.target.value)}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white mt-2"
+                    >
+                      {aggregators.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.company_name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                <div className="rounded-lg border border-sky-500/30 bg-sky-950/20 p-3 space-y-3">
+                  <span className="font-bold text-sky-400 block">Driver App Credentials</span>
+                  <div>
+                    <label className="block text-slate-300 mb-1">Driver Login ID *</label>
+                    <input
+                      required
+                      value={dLoginId}
+                      onChange={(e) => setDLoginId(e.target.value)}
+                      placeholder="drivername@provene.in"
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 mb-1">Password *</label>
+                    <input
+                      required
+                      value={dPassword}
+                      onChange={(e) => setDPassword(e.target.value)}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                    />
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  className="w-full rounded-lg bg-sky-500 py-3 font-bold text-slate-950 hover:bg-sky-400"
+                >
+                  Save & Activate Driver
+                </button>
+              </form>
+            )}
+
+            {/* DRAWER 3: ADD AGGREGATOR */}
+            {activeDrawer === 'ADD_AGGREGATOR' && (
+              <form onSubmit={handleCreateAggregator} className="space-y-4 text-xs">
+                <div>
+                  <label className="block text-slate-300 mb-1">Buyer / Refinery Name *</label>
+                  <input
+                    required
+                    value={aCompany}
+                    onChange={(e) => setACompany(e.target.value)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 mb-1">Contact Person *</label>
+                    <input
+                      required
+                      value={aContact}
+                      onChange={(e) => setAContact(e.target.value)}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 mb-1">Phone *</label>
+                    <input
+                      required
+                      value={aPhone}
+                      onChange={(e) => setAPhone(e.target.value)}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-slate-300 mb-1">GST / Biofuel License No. *</label>
+                  <input
+                    required
+                    value={aGst}
+                    onChange={(e) => setAGst(e.target.value)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-white"
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-slate-300 mb-1">Min Lot (kg)</label>
+                    <input
+                      type="number"
+                      required
+                      value={aMinCap}
+                      onChange={(e) => setAMinCap(Number(e.target.value))}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 mb-1">Max Cap (kg)</label>
+                    <input
+                      type="number"
+                      required
+                      value={aMaxCap}
+                      onChange={(e) => setAMaxCap(Number(e.target.value))}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 mb-1">Rate (â‚¹/kg)</label>
+                    <input
+                      type="number"
+                      required
+                      value={aRate}
+                      onChange={(e) => setARate(Number(e.target.value))}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                    />
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  className="w-full rounded-lg bg-amber-500 py-3 font-bold text-slate-950 hover:bg-amber-400"
+                >
+                  Register Buyer Account
+                </button>
+              </form>
+            )}
+
+            {/* DRAWER 4: ADD EMPLOYEE */}
+            {activeDrawer === 'ADD_EMPLOYEE' && (
+              <form onSubmit={handleCreateEmployee} className="space-y-4 text-xs">
+                <div>
+                  <label className="block text-slate-300 mb-1">Employee Name *</label>
+                  <input
+                    required
+                    value={eName}
+                    onChange={(e) => setEName(e.target.value)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 mb-1">Designation / Role *</label>
+                  <input
+                    required
+                    value={eRole}
+                    onChange={(e) => setERole(e.target.value)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 mb-1">Phone *</label>
+                  <input
+                    required
+                    value={ePhone}
+                    onChange={(e) => setEPhone(e.target.value)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 mb-1">Ops Hub Login ID *</label>
+                  <input
+                    required
+                    value={eLoginId}
+                    onChange={(e) => setELoginId(e.target.value)}
+                    placeholder="name@provene.in"
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 mb-1">Password *</label>
+                  <input
+                    required
+                    value={ePassword}
+                    onChange={(e) => setEPassword(e.target.value)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full rounded-lg bg-purple-500 py-3 font-bold text-slate-950 hover:bg-purple-400"
+                >
+                  Grant Ops Hub Access
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+=== FILE: D:\Provene\app\globals.css ===
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #020617;
+    color: #f8fafc;
+    font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  }
+}
+
+=== FILE: D:\Provene\app\layout.tsx ===
+import type { Metadata } from 'next';
+import './globals.css';
+import Navbar from '@/components/Navbar';
+
+export const metadata: Metadata = {
+  title: 'Provene | Used Cooking Oil Operations & Traceability',
+  description: 'Enterprise Used Cooking Oil Collection & Biofuel Supply Chain Platform',
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en" className="dark">
+      <body className="min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-emerald-500 selection:text-slate-950">
+        <Navbar />
+        <main className="w-full">{children}</main>
+      </body>
+    </html>
+  );
+}
+
+=== FILE: D:\Provene\app\page.tsx ===
+'use client';
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
+import {
+  Store,
+  Truck,
+  Activity,
+  ArrowRight,
+  Plane,
+  MapPin,
+  AlertTriangle,
+  Lock,
+} from 'lucide-react';
+
+export default function HomePage() {
+  const [stats, setStats] = useState({
+    kitchenCount: 0,
+    totalUcoKg: 0,
+    totalPickups: 0,
+  });
+
+  useEffect(() => {
+    async function loadStats() {
+      const { data: kitchens } = await supabase.from('kitchens').select('id');
+      const { data: collections } = await supabase
+        .from('collections')
+        .select('weight_kg');
+
+      const totalKg = (collections || []).reduce(
+        (acc, row) => acc + Number(row.weight_kg || 0),
+        0
+      );
+
+      setStats({
+        kitchenCount: kitchens?.length || 0,
+        totalUcoKg: Number(totalKg.toFixed(1)),
+        totalPickups: collections?.length || 0,
+      });
+    }
+    loadStats();
+  }, []);
+
+  return (
+    <div className="space-y-16 pb-12 text-slate-900">
+      {/* 1. HERO SECTION */}
+      <section className="rounded-3xl border border-slate-200 bg-white p-8 md:p-12 shadow-sm">
+        <div className="grid gap-10 lg:grid-cols-12 lg:items-center">
+          <div className="lg:col-span-7 space-y-6">
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-700">
+              <MapPin className="h-3.5 w-3.5" />
+              Serving Noida: Sector 126 â€¢ Sector 104 â€¢ Sector 76
+            </div>
+
+            <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
+              We Turn Used Kitchen Oil into{' '}
+              <span className="text-emerald-600">Clean Biofuel.</span>
+            </h1>
+
+            <p className="text-base text-slate-600 leading-relaxed">
+              <strong>Provene</strong> partners with restaurants, cloud kitchens, and hostel messes
+              to collect their used cooking oil right from their doorstep. We pay kitchens
+              instantly, provide official <strong>FSSAI disposal records</strong>, and ensure every
+              drop is safely recycled into clean green fuel instead of re-entering the food chain.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-4 pt-2">
+              <Link
+                href="/login"
+                className="flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3.5 text-sm font-bold text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700"
+              >
+                Partner Login <ArrowRight className="h-4 w-4" />
+              </Link>
+              <a
+                href="#process"
+                className="rounded-xl border border-slate-300 bg-slate-50 px-6 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+              >
+                How It Works
+              </a>
+            </div>
+          </div>
+
+          {/* Live Impact Summary */}
+          <div className="lg:col-span-5 rounded-2xl border border-slate-200 bg-slate-50 p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">
+                  Live Noida Collection Stats
+                </span>
+                <p className="text-xs text-slate-500">Updated in real time</p>
+              </div>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-800">
+                <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse" />
+                ACTIVE
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-medium text-slate-500">Partner Kitchens</p>
+                <p className="mt-1 text-2xl font-extrabold text-slate-900">
+                  {stats.kitchenCount}
+                </p>
+                <p className="mt-1 text-[11px] font-medium text-emerald-600">
+                  Verified Outlets
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-medium text-slate-500">Used Oil Collected</p>
+                <p className="mt-1 text-2xl font-extrabold text-emerald-600">
+                  {stats.totalUcoKg} kg
+                </p>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  {stats.totalPickups} Completed Pickups
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-medium text-slate-500">Clean Biofuel Produced</p>
+                <p className="mt-1 text-2xl font-extrabold text-sky-600">
+                  {(stats.totalUcoKg * 0.82).toFixed(1)} L
+                </p>
+                <p className="mt-1 text-[11px] text-slate-500">Green Fuel Equivalent</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-medium text-slate-500">Pollution Prevented</p>
+                <p className="mt-1 text-2xl font-extrabold text-amber-600">
+                  {(stats.totalUcoKg * 2.8).toFixed(1)} kg
+                </p>
+                <p className="mt-1 text-[11px] text-slate-500">COâ‚‚ Emissions Saved</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 2. WHY PROVENE */}
+      <section id="about" className="space-y-6">
+        <div className="text-center max-w-3xl mx-auto space-y-2">
+          <span className="text-xs font-bold uppercase tracking-widest text-emerald-600">
+            Our Mission
+          </span>
+          <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900">
+            Protecting Public Health & Powering Clean Energy
+          </h2>
+          <p className="text-sm text-slate-600">
+            Every week, thousands of liters of used frying oil leave commercial kitchens without
+            proper tracking. Provene makes safe oil disposal effortless and rewarding.
+          </p>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="rounded-2xl border border-red-200 bg-red-50/50 p-6 space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-lg bg-red-100 px-3 py-1.5 text-xs font-bold text-red-800">
+              <AlertTriangle className="h-4 w-4" />
+              1. Stopping Illegal Oil Reuse in Food
+            </div>
+            <h3 className="text-lg font-bold text-slate-900">
+              Keeping Used Frying Oil Out of Local Food Markets
+            </h3>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Unregistered scrap buyers often collect old frying oil and resell it back into local
+              street food markets. Provene gives restaurants a trusted collection partner and
+              official <strong>FSSAI disposal records</strong> for every pickup.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-6 space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-800">
+              <Plane className="h-4 w-4" />
+              2. Supplying Clean, Verified Biofuel Refineries
+            </div>
+            <p className="text-lg font-bold text-slate-900">
+              100% Traceable Supply From Kitchen to Refinery
+            </p>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Biofuel plants need proof that used oil came from real kitchens and wasn&apos;t mixed
+              with water or cheap oil. We weigh and record every drum at the restaurant door so
+              refineries get pure, verified oil.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* 3. HOW IT WORKS */}
+      <section id="process" className="space-y-8">
+        <div className="text-center max-w-3xl mx-auto space-y-2">
+          <span className="text-xs font-bold uppercase tracking-widest text-emerald-600">
+            Simple 4-Step Process
+          </span>
+          <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900">
+            How Provene Works
+          </h2>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-3">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 font-bold text-sm text-emerald-700">
+              1
+            </span>
+            <h3 className="text-base font-bold text-slate-900">Kitchen Registration</h3>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Our team registers your restaurant, FSSAI number, and kitchen location into the
+              Provene network.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-3">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100 font-bold text-sm text-sky-700">
+              2
+            </span>
+            <h3 className="text-base font-bold text-slate-900">Doorstep Weighing</h3>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Our pickup driver weighs your used oil at your doorstep and logs the weight and scale
+              photo in our mobile app.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-3">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-purple-100 font-bold text-sm text-purple-700">
+              3
+            </span>
+            <h3 className="text-base font-bold text-slate-900">Instant Payment</h3>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Your restaurant receives instant payment per kilogram of oil collected, with zero
+              middleman cuts.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-3">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 font-bold text-sm text-amber-700">
+              4
+            </span>
+            <h3 className="text-base font-bold text-slate-900">FSSAI Ledger Download</h3>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Log into your Restaurant Portal anytime to view your pickup dates, weights, and
+              download your FSSAI disposal ledger.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* 4. PORTALS OVERVIEW */}
+      <section id="portals" className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm space-y-6">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center border-b border-slate-200 pb-6">
+          <div>
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">
+              Dedicated Access
+            </span>
+            <h2 className="text-2xl font-extrabold text-slate-900">
+              One Platform for Restaurants, Drivers & Operations
+            </h2>
+          </div>
+          <Link
+            href="/login"
+            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-xs font-bold text-white hover:bg-slate-800"
+          >
+            <Lock className="h-4 w-4 text-emerald-400" />
+            Login to Your Account
+          </Link>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 space-y-3">
+            <div className="inline-flex items-center gap-2 text-emerald-700 font-bold text-sm">
+              <Store className="h-5 w-5" /> 1. Restaurant Portal
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              For partner restaurants to track how much oil was picked up, check collection dates
+              and payments, and download official FSSAI disposal ledgers.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 space-y-3">
+            <div className="inline-flex items-center gap-2 text-sky-700 font-bold text-sm">
+              <Truck className="h-5 w-5" /> 2. Driver Pickup App
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              A simple, fast mobile screen for collection drivers to select the restaurant, enter
+              the oil weight, attach a scale photo, and save the pickup.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 space-y-3">
+            <div className="inline-flex items-center gap-2 text-amber-700 font-bold text-sm">
+              <Activity className="h-5 w-5" /> 3. Operations Command Center
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              For our operations team to view the live Noida map across Sector 126, 104, and 76 and
+              monitor all daily oil collections.
+            </p>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+=== FILE: D:\Provene\components\Navbar.tsx ===
+'use client';
+
+import { useEffect } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { ShieldCheck, LogIn } from 'lucide-react';
+
+export default function Navbar() {
+  const pathname = usePathname();
+  const isPublicPage = pathname === '/' || pathname === '/login';
+
+  useEffect(() => {
+    if (isPublicPage) {
+      document.body.style.backgroundColor = '#f8fafc';
+      document.body.style.color = '#0f172a';
+    } else {
+      document.body.style.backgroundColor = '#020617';
+      document.body.style.color = '#f8fafc';
+    }
+  }, [isPublicPage]);
+
+  // Internal portals (/master, /kitchen, /driver) use their own Left Sidebar
+  if (!isPublicPage) {
+    return null;
+  }
+
+  return (
+    <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-md print:hidden">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3.5">
+        <Link href="/" className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-sm">
+            <ShieldCheck className="h-5 w-5" />
+          </div>
+          <div>
+            <span className="text-lg font-extrabold tracking-tight text-slate-900">
+              PROVENE
+            </span>
+            <p className="text-[11px] font-medium text-slate-500">
+              Used Cooking Oil Collection & Biofuel Supply
+            </p>
+          </div>
+        </Link>
+
+        <div className="hidden md:flex items-center gap-6 text-xs font-semibold text-slate-600">
+          <Link href="/#about" className="hover:text-emerald-600 transition">
+            Why Provene
+          </Link>
+          <Link href="/#process" className="hover:text-emerald-600 transition">
+            How It Works
+          </Link>
+          <Link href="/#portals" className="hover:text-emerald-600 transition">
+            Partner Portals
+          </Link>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {pathname !== '/login' ? (
+            <Link
+              href="/login"
+              className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
+            >
+              <LogIn className="h-4 w-4" />
+              Partner Login
+            </Link>
+          ) : (
+            <Link
+              href="/"
+              className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              â† Back to Home
+            </Link>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+=== FILE: D:\Provene\lib\crypto.ts ===
+export interface PlausibilityResult {
+    status: 'VERIFIED' | 'FLAGGED_OVER_CAPACITY' | 'REJECTED_HIGH_MOISTURE';
+    reason: string;
+    maxAllowedKg: number;
+}
+
+export function canonicalizeJson(obj: Record<string, unknown>): string {
+    const sortedKeys = Object.keys(obj).sort();
+    const sortedObj: Record<string, unknown> = {};
+    for (const key of sortedKeys) {
+        sortedObj[key] = obj[key];
+    }
+    return JSON.stringify(sortedObj);
+}
+
+export async function generateSHA256(
+    payload: Record<string, unknown>
+): Promise<{ canonicalJson: string; hash: string }> {
+    const canonicalJson = canonicalizeJson(payload);
+    const encoder = new TextEncoder();
+    const data = encoder.encode(canonicalJson);
+    const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hash = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+    return { canonicalJson, hash };
+}
+
+export function evaluatePlausibility(
+    weightKg: number,
+    fryerCapacityLiters: number,
+    tpcPercent: number,
+    moisturePercent: number
+): PlausibilityResult {
+    const maxAllowedKg = Number((fryerCapacityLiters * 0.85).toFixed(1));
+
+    if (moisturePercent > 2.0) {
+        return {
+            status: 'REJECTED_HIGH_MOISTURE',
+            reason: `Moisture (${moisturePercent}%) exceeds 2.0% threshold â€” Water Adulteration Risk`,
+            maxAllowedKg,
+        };
+    }
+
+    if (weightKg > maxAllowedKg) {
+        return {
+            status: 'FLAGGED_OVER_CAPACITY',
+            reason: `Volume (${weightKg} kg) exceeds 85% max fryer plausibility (${maxAllowedKg} kg) â€” Synthetic Palm Oil Dilution Risk`,
+            maxAllowedKg,
+        };
+    }
+
+    return {
+        status: 'VERIFIED',
+        reason: `Passes ISCC EU Point-of-Origin & FSSAI RUCO parameters (TPC: ${tpcPercent}%)`,
+        maxAllowedKg,
+    };
+}
+
+=== FILE: D:\Provene\lib\supabase.ts ===
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+export interface Kitchen {
+    id: string;
+    name: string;
+    owner_name: string;
+    phone: string;
+    fssai_number: string;
+    fryer_capacity_liters: number;
+    weekly_est_uco_kg: number;
+    lat: number;
+    lng: number;
+    address: string;
+    login_id?: string;
+    password?: string;
+    pickup_requested?: boolean;
+    pickup_eta?: string;
+    iscc_declared: boolean;
+    created_at: string;
+}
+
+export interface Aggregator {
+    id: string;
+    company_name: string;
+    contact_person: string;
+    phone: string;
+    gst_or_license: string;
+    min_capacity_kg: number;
+    max_capacity_kg: number;
+    rate_per_kg: number;
+    oil_bought_kg: number;
+    created_at: string;
+}
+
+export interface Driver {
+    id: string;
+    name: string;
+    phone: string;
+    vehicle_number: string;
+    license_number: string;
+    employment_type: 'PROVENE_HIRED' | 'THIRD_PARTY';
+    aggregator_id?: string | null;
+    aggregator_name?: string;
+    login_id: string;
+    password: string;
+    created_at: string;
+}
+
+export interface Employee {
+    id: string;
+    name: string;
+    role: string;
+    phone: string;
+    login_id: string;
+    password: string;
+    created_at: string;
+}
+
+export interface Collection {
+    id: string;
+    kitchen_id: string;
+    kitchen_name: string;
+    drum_id: string;
+    weight_kg: number;
+    tpc_percent: number;
+    moisture_percent: number;
+    payout_inr: number;
+    plausibility_status: string;
+    payload_json: string;
+    sha256_hash: string;
+    collector_gps?: string;
+    driver_name?: string;
+    aggregator_id?: string | null;
+    aggregator_name?: string;
+    created_at: string;
+}
+

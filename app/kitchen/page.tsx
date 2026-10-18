@@ -19,7 +19,7 @@ import {
 
 export default function KitchenEnterprisePortal() {
     const router = useRouter();
-    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
     const [activePage, setActivePage] = useState<'history' | 'request-pickup' | 'download-ledger'>(
         'history'
     );
@@ -179,8 +179,8 @@ export default function KitchenEnterprisePortal() {
                         <button
                             onClick={() => setActivePage('history')}
                             className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium transition ${activePage === 'history'
-                                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold'
-                                    : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold'
+                                : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
                                 }`}
                         >
                             <Calendar className="h-4 w-4 shrink-0" />
@@ -190,8 +190,8 @@ export default function KitchenEnterprisePortal() {
                         <button
                             onClick={() => setActivePage('request-pickup')}
                             className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium transition ${activePage === 'request-pickup'
-                                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold'
-                                    : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold'
+                                : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
                                 }`}
                         >
                             <BellRing className="h-4 w-4 shrink-0" />
@@ -201,8 +201,8 @@ export default function KitchenEnterprisePortal() {
                         <button
                             onClick={() => setActivePage('download-ledger')}
                             className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium transition ${activePage === 'download-ledger'
-                                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold'
-                                    : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold'
+                                : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
                                 }`}
                         >
                             <Download className="h-4 w-4 shrink-0" />

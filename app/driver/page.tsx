@@ -33,7 +33,7 @@ function getDistanceInMeters(lat1: number, lon1: number, lat2: number, lon2: num
 
 export default function DriverEnterprisePortal() {
     const router = useRouter();
-    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
     const [activeScreen, setActiveScreen] = useState<'route' | 'fill-data' | 'dropoff'>('route');
 
     const [driverName, setDriverName] = useState('Ramesh Kumar');
@@ -313,8 +313,8 @@ export default function DriverEnterprisePortal() {
                         <button
                             onClick={() => setActiveScreen('route')}
                             className={`w-full flex items-center justify-between rounded-lg px-3 py-2.5 text-xs font-medium transition ${activeScreen === 'route'
-                                    ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30 font-semibold'
-                                    : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                                ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30 font-semibold'
+                                : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
                                 }`}
                         >
                             <div className="flex items-center gap-3">
@@ -331,8 +331,8 @@ export default function DriverEnterprisePortal() {
                         <button
                             onClick={() => setActiveScreen('dropoff')}
                             className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium transition ${activeScreen === 'dropoff'
-                                    ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30 font-semibold'
-                                    : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                                ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30 font-semibold'
+                                : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
                                 }`}
                         >
                             <Factory className="h-4 w-4 shrink-0" />
@@ -450,8 +450,8 @@ export default function DriverEnterprisePortal() {
                                                         setDistanceMeters(null);
                                                     }}
                                                     className={`cursor-pointer rounded-lg border p-3.5 transition ${active
-                                                            ? 'border-sky-500 bg-sky-950/25'
-                                                            : 'border-slate-800 bg-slate-950 hover:border-slate-700'
+                                                        ? 'border-sky-500 bg-sky-950/25'
+                                                        : 'border-slate-800 bg-slate-950 hover:border-slate-700'
                                                         }`}
                                                 >
                                                     <div className="flex items-center justify-between">
