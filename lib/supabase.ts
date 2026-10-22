@@ -16,6 +16,7 @@ export interface Kitchen {
     lat: number;
     lng: number;
     address: string;
+    group_name?: string;
     login_id?: string;
     password?: string;
     pickup_requested?: boolean;

@@ -19,7 +19,6 @@ export default function Navbar() {
     }
   }, [isPublicPage]);
 
-  // Internal portals (/master, /kitchen, /driver) use their own Left Sidebar
   if (!isPublicPage) {
     return null;
   }
@@ -28,11 +27,11 @@ export default function Navbar() {
     <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-md print:hidden">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3.5">
         <Link href="/" className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-sm">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
             <ShieldCheck className="h-5 w-5" />
           </div>
           <div>
-            <span className="text-lg font-extrabold tracking-tight text-slate-900">
+            <span className="text-xl font-extrabold tracking-tight text-slate-900">
               PROVENE
             </span>
             <p className="text-[11px] font-medium text-slate-500">
@@ -41,17 +40,23 @@ export default function Navbar() {
           </div>
         </Link>
 
-        <div className="hidden md:flex items-center gap-6 text-xs font-semibold text-slate-600">
+        <nav className="hidden lg:flex items-center gap-7 text-xs font-semibold text-slate-600">
           <Link href="/#about" className="hover:text-emerald-600 transition">
             Why Provene
+          </Link>
+          <Link href="/#who-we-serve" className="hover:text-emerald-600 transition">
+            Who We Serve
           </Link>
           <Link href="/#process" className="hover:text-emerald-600 transition">
             How It Works
           </Link>
-          <Link href="/#portals" className="hover:text-emerald-600 transition">
-            Partner Portals
+          <Link href="/#compliance" className="hover:text-emerald-600 transition">
+            FSSAI Compliance
           </Link>
-        </div>
+          <Link href="/#portals" className="hover:text-emerald-600 transition">
+            Platform Portals
+          </Link>
+        </nav>
 
         <div className="flex items-center gap-3">
           {pathname !== '/login' ? (
@@ -60,7 +65,7 @@ export default function Navbar() {
               className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
             >
               <LogIn className="h-4 w-4" />
-              Partner Login
+              Portal Login
             </Link>
           ) : (
             <Link

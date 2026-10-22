@@ -114,7 +114,7 @@ export default function LoginPage() {
                     role: 'DRIVER',
                     id: driverData.id,
                     name: driverData.name,
-                    vehicle_number: driverData.vehicle_number, // <--- ADD THIS LINE HERE
+                    vehicle_number: driverData.vehicle_number,
                     employment_type: driverData.employment_type,
                     aggregator_id: driverData.aggregator_id,
                     aggregator_name: driverData.aggregator_name,

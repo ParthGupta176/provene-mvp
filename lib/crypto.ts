@@ -31,7 +31,7 @@ export function evaluatePlausibility(
     tpcPercent: number,
     moisturePercent: number
 ): PlausibilityResult {
-    const maxAllowedKg = Number((fryerCapacityLiters * 0.85).toFixed(1));
+    const maxAllowedKg = Number((fryerCapacityLiters * 0.85 * 1.15).toFixed(1));
 
     if (moisturePercent > 2.0) {
         return {
@@ -44,7 +44,7 @@ export function evaluatePlausibility(
     if (weightKg > maxAllowedKg) {
         return {
             status: 'FLAGGED_OVER_CAPACITY',
-            reason: `Volume (${weightKg} kg) exceeds 85% max fryer plausibility (${maxAllowedKg} kg) — Synthetic Palm Oil Dilution Risk`,
+            reason: `Volume (${weightKg} kg) exceeds max fryer plausibility (${maxAllowedKg} kg) — Synthetic Palm Oil Dilution Risk`,
             maxAllowedKg,
         };
     }

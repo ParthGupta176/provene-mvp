@@ -32,16 +32,13 @@ import {
   IndianRupee,
   BellRing,
   Eye,
+  Navigation,
+  FolderPlus,
+  Layers,
 } from 'lucide-react';
 
 type ModuleTab = 'overview' | 'kitchens' | 'drivers' | 'aggregators' | 'employees';
 type DrawerType = 'NONE' | 'ADD_KITCHEN' | 'ADD_DRIVER' | 'ADD_AGGREGATOR' | 'ADD_EMPLOYEE';
-
-const CLUSTER_PRESETS = [
-  { label: 'Sector 126', lat: 28.5442, lng: 77.334, address: 'Main Market, Sector 126, Noida' },
-  { label: 'Sector 104', lat: 28.5389, lng: 77.3688, address: 'Commercial Market, Sector 104, Noida' },
-  { label: 'Sector 76', lat: 28.5672, lng: 77.3792, address: 'Central Food Market, Sector 76, Noida' },
-];
 
 export default function ProveneEnterpriseOpsHub() {
   const router = useRouter();
@@ -52,8 +49,14 @@ export default function ProveneEnterpriseOpsHub() {
 
   const [operatorName, setOperatorName] = useState('Parth Gupta');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sectorFilter, setSectorFilter] = useState('ALL');
   const [toast, setToast] = useState('');
+
+  // Custom Grouping States
+  const [customGroups, setCustomGroups] = useState<string[]>([]);
+  const [activeGroupFilter, setActiveGroupFilter] = useState<string>('ALL');
+  const [selectedKitchenIds, setSelectedKitchenIds] = useState<string[]>([]);
+  const [newGroupInput, setNewGroupInput] = useState('');
+  const [bulkTargetGroup, setBulkTargetGroup] = useState('');
 
   // Database State
   const [kitchens, setKitchens] = useState<Kitchen[]>([]);
@@ -68,7 +71,8 @@ export default function ProveneEnterpriseOpsHub() {
   const [kPhone, setKPhone] = useState('');
   const [kFssai, setKFssai] = useState('');
   const [kFryer, setKFryer] = useState<number>(45);
-  const [kAddress, setKAddress] = useState('Main Market, Sector 126, Noida');
+  const [kAddress, setKAddress] = useState('');
+  const [kGroup, setKGroup] = useState('Ungrouped');
   const [kLat, setKLat] = useState<number>(28.5442);
   const [kLng, setKLng] = useState<number>(77.334);
   const [kLoginId, setKLoginId] = useState('');
@@ -109,13 +113,37 @@ export default function ProveneEnterpriseOpsHub() {
       supabase.from('employees').select('*').order('created_at', { ascending: false }),
     ]);
 
-    setKitchens(kRes.data || []);
+    const loadedKitchens: Kitchen[] = kRes.data || [];
+    setKitchens(loadedKitchens);
     setCollections(cRes.data || []);
     setAggregators(aRes.data || []);
     setDrivers(dRes.data || []);
     setEmployees(eRes.data || []);
+
     if (aRes.data && aRes.data.length > 0 && !dAggregatorId) {
       setDAggregatorId(aRes.data[0].id);
+    }
+
+    // Merge groups from DB + localStorage
+    const dbGroups = Array.from(
+      new Set(
+        loadedKitchens
+          .map((k) => k.group_name?.trim())
+          .filter((g): g is string => Boolean(g) && g !== 'Ungrouped')
+      )
+    );
+    let savedLocalGroups: string[] = [];
+    if (typeof window !== 'undefined') {
+      try {
+        savedLocalGroups = JSON.parse(localStorage.getItem('provene_custom_groups') || '[]');
+      } catch {
+        savedLocalGroups = [];
+      }
+    }
+    const merged = Array.from(new Set([...savedLocalGroups, ...dbGroups]));
+    setCustomGroups(merged);
+    if (merged.length > 0 && !bulkTargetGroup) {
+      setBulkTargetGroup(merged[0]);
     }
   }
 
@@ -167,9 +195,9 @@ export default function ProveneEnterpriseOpsHub() {
 
       const bounds: [number, number][] = [];
       const visibleKitchens =
-        sectorFilter === 'ALL'
+        activeGroupFilter === 'ALL'
           ? kitchens
-          : kitchens.filter((k) => k.address.toLowerCase().includes(sectorFilter.toLowerCase()));
+          : kitchens.filter((k) => (k.group_name || 'Ungrouped') === activeGroupFilter);
 
       visibleKitchens.forEach((k) => {
         bounds.push([k.lat, k.lng]);
@@ -185,7 +213,8 @@ export default function ProveneEnterpriseOpsHub() {
 
         marker.bindPopup(
           `<div style="color:#0f172a;font-family:sans-serif;font-size:12px;line-height:1.4;">
-            <strong>${k.name}</strong><br/>
+            <strong>${k.name}</strong> <span style="background:#e2e8f0;padding:1px 5px;border-radius:4px;font-size:10px;">${k.group_name || 'Ungrouped'
+          }</span><br/>
             <span style="color:#475569;">${k.address}</span><br/>
             <span>Fryer: <b>${k.fryer_capacity_liters}L</b> • FSSAI: ${k.fssai_number}</span>
           </div>`
@@ -206,17 +235,79 @@ export default function ProveneEnterpriseOpsHub() {
       script.onload = initMap;
       document.body.appendChild(script);
     }
-  }, [activeTab, kitchens, sectorFilter]);
+  }, [activeTab, kitchens, activeGroupFilter]);
 
   const notify = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(''), 3500);
   };
 
+  // Custom Group Management Handlers
+  const handleCreateCustomGroup = (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = newGroupInput.trim();
+    if (!clean) return;
+    if (!customGroups.includes(clean)) {
+      const updated = [...customGroups, clean];
+      setCustomGroups(updated);
+      localStorage.setItem('provene_custom_groups', JSON.stringify(updated));
+    }
+    setBulkTargetGroup(clean);
+    setNewGroupInput('');
+    notify(`Created custom group "${clean}"`);
+  };
+
+  const handleBulkAssignGroup = async () => {
+    if (selectedKitchenIds.length === 0 || !bulkTargetGroup) return;
+    const { error } = await supabase
+      .from('kitchens')
+      .update({ group_name: bulkTargetGroup })
+      .in('id', selectedKitchenIds);
+
+    if (!error) {
+      notify(`Assigned ${selectedKitchenIds.length} kitchen(s) to "${bulkTargetGroup}"`);
+      setSelectedKitchenIds([]);
+      await fetchAllData();
+    } else {
+      alert(error.message);
+    }
+  };
+
+  const handleSingleKitchenGroupChange = async (kitchenId: string, newGroupName: string) => {
+    const { error } = await supabase
+      .from('kitchens')
+      .update({ group_name: newGroupName })
+      .eq('id', kitchenId);
+
+    if (!error) {
+      notify(`Updated group to "${newGroupName}"`);
+      await fetchAllData();
+    } else {
+      alert(error.message);
+    }
+  };
+
+  const toggleSelectKitchen = (id: string) => {
+    setSelectedKitchenIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleUseCurrentGpsForKitchen = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition((pos) => {
+      setKLat(Number(pos.coords.latitude.toFixed(6)));
+      setKLng(Number(pos.coords.longitude.toFixed(6)));
+      notify('Captured current GPS coordinates');
+    });
+  };
+
   // Drawer Submit Handlers
   const handleCreateKitchen = async (e: React.FormEvent) => {
     e.preventDefault();
     const weeklyEst = Number((kFryer * 0.85).toFixed(1));
+    const cleanGroup = kGroup.trim() || 'Ungrouped';
+
     const { error } = await supabase.from('kitchens').insert([
       {
         name: kName,
@@ -228,6 +319,7 @@ export default function ProveneEnterpriseOpsHub() {
         lat: Number(kLat),
         lng: Number(kLng),
         address: kAddress,
+        group_name: cleanGroup,
         login_id: kLoginId.trim().toLowerCase(),
         password: kPassword.trim(),
         iscc_declared: true,
@@ -240,6 +332,8 @@ export default function ProveneEnterpriseOpsHub() {
       setKOwner('');
       setKPhone('');
       setKFssai('');
+      setKAddress('');
+      setKGroup('Ungrouped');
       setKLoginId('');
       setKPassword('');
       setActiveDrawer('NONE');
@@ -356,6 +450,18 @@ export default function ProveneEnterpriseOpsHub() {
     }
   };
 
+  // Filtered Kitchens for Table
+  const filteredKitchens = kitchens.filter((k) => {
+    const matchesSearch =
+      k.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      k.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      k.fssai_number.includes(searchQuery) ||
+      (k.group_name || 'Ungrouped').toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesGroup =
+      activeGroupFilter === 'ALL' || (k.group_name || 'Ungrouped') === activeGroupFilter;
+    return matchesSearch && matchesGroup;
+  });
+
   // Operational & Financial Metrics
   const totalCollectedKg = collections.reduce((s, c) => s + Number(c.weight_kg || 0), 0);
   const totalProcurementCost = collections.reduce((s, c) => s + Number(c.payout_inr || 0), 0);
@@ -410,8 +516,8 @@ export default function ProveneEnterpriseOpsHub() {
                   onClick={() => setActiveTab(item.id)}
                   title={item.label}
                   className={`w-full flex items-center justify-between rounded-lg px-3 py-2.5 text-xs font-medium transition ${active
-                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold'
-                    : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 border border-transparent'
+                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold'
+                      : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 border border-transparent'
                     }`}
                 >
                   <div className="flex items-center gap-3">
@@ -434,7 +540,7 @@ export default function ProveneEnterpriseOpsHub() {
           {sidebarOpen && (
             <div className="rounded-lg bg-slate-900/90 px-3 py-2 border border-slate-800/80">
               <p className="text-xs font-semibold text-white truncate">{operatorName}</p>
-              <p className="text-[10px] text-emerald-400 font-mono">Noida Cluster Admin</p>
+              <p className="text-[10px] text-emerald-400 font-mono">Operations Administrator</p>
             </div>
           )}
           <button
@@ -468,7 +574,7 @@ export default function ProveneEnterpriseOpsHub() {
               <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search kitchens, drums, drivers, FSSAI..."
+                placeholder="Search kitchens, groups, drums, FSSAI..."
                 className="w-full rounded-lg border border-slate-800 bg-slate-950 pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
               />
             </div>
@@ -487,7 +593,7 @@ export default function ProveneEnterpriseOpsHub() {
 
             <div className="hidden md:flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-300">
               <span className="h-2 w-2 rounded-full bg-emerald-400" />
-              <span>Noida Hub (Sec 126 • 104 • 76)</span>
+              <span>Central Operations Hub</span>
             </div>
 
             <button
@@ -518,8 +624,8 @@ export default function ProveneEnterpriseOpsHub() {
                     Supply Chain Telemetry & Dispatch Radar
                   </h1>
                   <p className="text-xs text-slate-400">
-                    Real-time inventory, unit economics, and collection verification across Noida
-                    clusters.
+                    Real-time inventory, unit economics, and collection verification across partner
+                    kitchens.
                   </p>
                 </div>
 
@@ -600,7 +706,7 @@ export default function ProveneEnterpriseOpsHub() {
                 </div>
               </div>
 
-              {/* Split View: Geospatial Cluster Radar (5 cols) + Collection Manifest Table (7 cols) */}
+              {/* Split View: Geospatial Radar (5 cols) + Collection Manifest Table (7 cols) */}
               <div className="grid gap-6 lg:grid-cols-12">
                 {/* Geospatial Radar */}
                 <div className="lg:col-span-5 rounded-xl border border-slate-800/90 bg-[#0d1322] flex flex-col justify-between overflow-hidden">
@@ -608,24 +714,29 @@ export default function ProveneEnterpriseOpsHub() {
                     <div className="flex items-center gap-2">
                       <MapPin className="h-4 w-4 text-emerald-400" />
                       <span className="text-xs font-bold uppercase tracking-wider text-white">
-                        Cluster Geospatial Radar
+                        Live Geospatial Network Map
                       </span>
                     </div>
 
-                    <div className="flex gap-1">
-                      {['ALL', 'Sector 126', 'Sector 104', 'Sector 76'].map((sec) => (
-                        <button
-                          key={sec}
-                          onClick={() => setSectorFilter(sec)}
-                          className={`rounded px-2 py-0.5 text-[10px] font-semibold transition ${sectorFilter === sec
-                            ? 'bg-emerald-500 text-slate-950'
-                            : 'bg-slate-900 text-slate-400 hover:text-white'
-                            }`}
-                        >
-                          {sec === 'ALL' ? 'All' : sec.replace('Sector ', 'S')}
-                        </button>
-                      ))}
-                    </div>
+                    {customGroups.length > 0 ? (
+                      <select
+                        value={activeGroupFilter}
+                        onChange={(e) => setActiveGroupFilter(e.target.value)}
+                        className="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] font-semibold text-emerald-400"
+                      >
+                        <option value="ALL">All Groups ({kitchens.length})</option>
+                        <option value="Ungrouped">Ungrouped</option>
+                        {customGroups.map((g) => (
+                          <option key={g} value={g}>
+                            {g}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="rounded bg-slate-900 px-2 py-0.5 font-mono text-[10px] text-emerald-400">
+                        {kitchens.length} Partner Locations
+                      </span>
+                    )}
                   </div>
 
                   <div
@@ -721,7 +832,7 @@ export default function ProveneEnterpriseOpsHub() {
             </div>
           )}
 
-          {/* MODULE 2: KITCHEN NETWORK TABLE */}
+          {/* MODULE 2: KITCHEN NETWORK TABLE + CUSTOM GROUP MANAGER */}
           {activeTab === 'kitchens' && (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-4">
@@ -730,8 +841,8 @@ export default function ProveneEnterpriseOpsHub() {
                     Partner Kitchen Network ({kitchens.length})
                   </h1>
                   <p className="text-xs text-slate-400">
-                    Manage commercial restaurant accounts, FSSAI licenses, pickup requests, and
-                    portal login credentials.
+                    Organize outlets into custom groups, manage FSSAI licenses, and assign portal
+                    login credentials.
                   </p>
                 </div>
                 <button
@@ -742,12 +853,131 @@ export default function ProveneEnterpriseOpsHub() {
                 </button>
               </div>
 
+              {/* CUSTOM GROUP BUILDER & FILTER BAR */}
+              <div className="rounded-xl border border-slate-800/90 bg-[#0d1322] p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  {/* Group Filter Pills */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1">
+                      <Layers className="h-3.5 w-3.5 text-emerald-400" /> Groups:
+                    </span>
+                    <button
+                      onClick={() => setActiveGroupFilter('ALL')}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${activeGroupFilter === 'ALL'
+                          ? 'bg-emerald-500 text-slate-950'
+                          : 'bg-slate-900 text-slate-300 hover:bg-slate-800'
+                        }`}
+                    >
+                      All ({kitchens.length})
+                    </button>
+                    <button
+                      onClick={() => setActiveGroupFilter('Ungrouped')}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${activeGroupFilter === 'Ungrouped'
+                          ? 'bg-emerald-500 text-slate-950'
+                          : 'bg-slate-900 text-slate-400 hover:bg-slate-800'
+                        }`}
+                    >
+                      Ungrouped (
+                      {kitchens.filter((k) => !k.group_name || k.group_name === 'Ungrouped').length}
+                      )
+                    </button>
+                    {customGroups.map((group) => {
+                      const count = kitchens.filter((k) => k.group_name === group).length;
+                      return (
+                        <button
+                          key={group}
+                          onClick={() => setActiveGroupFilter(group)}
+                          className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${activeGroupFilter === group
+                              ? 'bg-emerald-500 text-slate-950'
+                              : 'bg-slate-900 text-sky-400 border border-sky-500/20 hover:bg-slate-800'
+                            }`}
+                        >
+                          {group} ({count})
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Create New Group Inline Form */}
+                  <form onSubmit={handleCreateCustomGroup} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newGroupInput}
+                      onChange={(e) => setNewGroupInput(e.target.value)}
+                      placeholder="New group name..."
+                      className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
+                    />
+                    <button
+                      type="submit"
+                      className="flex items-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25"
+                    >
+                      <FolderPlus className="h-3.5 w-3.5" /> Create Group
+                    </button>
+                  </form>
+                </div>
+
+                {/* Bulk Assignment Action Bar (Appears when 1 or more kitchens are checked) */}
+                {selectedKitchenIds.length > 0 && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-500/40 bg-sky-950/25 px-3.5 py-2 text-xs">
+                    <span className="font-semibold text-sky-300">
+                      ✓ {selectedKitchenIds.length} kitchen(s) selected for grouping
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={bulkTargetGroup}
+                        onChange={(e) => setBulkTargetGroup(e.target.value)}
+                        className="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1 text-xs text-white"
+                      >
+                        <option value="Ungrouped">Ungrouped</option>
+                        {customGroups.map((g) => (
+                          <option key={g} value={g}>
+                            {g}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={handleBulkAssignGroup}
+                        className="rounded-lg bg-sky-500 px-3 py-1 font-bold text-slate-950 hover:bg-sky-400"
+                      >
+                        Assign to Group
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedKitchenIds([])}
+                        className="text-slate-400 hover:text-white px-2"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="rounded-xl border border-slate-800/90 bg-[#0d1322] overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-[#0b101b] text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-800">
                       <tr>
+                        <th className="py-3 px-3 w-8">
+                          <input
+                            type="checkbox"
+                            checked={
+                              filteredKitchens.length > 0 &&
+                              selectedKitchenIds.length === filteredKitchens.length
+                            }
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedKitchenIds(filteredKitchens.map((k) => k.id));
+                              } else {
+                                setSelectedKitchenIds([]);
+                              }
+                            }}
+                            className="rounded border-slate-700 bg-slate-900"
+                          />
+                        </th>
                         <th className="py-3 px-4">Restaurant & Address</th>
+                        <th className="py-3 px-4">Custom Group</th>
                         <th className="py-3 px-4">Owner & Contact</th>
                         <th className="py-3 px-4">FSSAI License</th>
                         <th className="py-3 px-4">Fryer Cap</th>
@@ -758,74 +988,96 @@ export default function ProveneEnterpriseOpsHub() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
-                      {kitchens
-                        .filter(
-                          (k) =>
-                            k.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            k.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            k.fssai_number.includes(searchQuery)
-                        )
-                        .map((k) => {
-                          const kPickups = collections.filter((c) => c.kitchen_id === k.id);
-                          const kTotalKg = kPickups.reduce(
-                            (s, c) => s + Number(c.weight_kg || 0),
-                            0
-                          );
-                          return (
-                            <tr key={k.id} className="hover:bg-slate-800/30">
-                              <td className="py-3 px-4">
-                                <p className="font-bold text-white">{k.name}</p>
-                                <p className="text-[11px] text-slate-400">{k.address}</p>
-                              </td>
-                              <td className="py-3 px-4">
-                                <p className="text-slate-200">{k.owner_name}</p>
-                                <p className="font-mono text-[11px] text-slate-400">{k.phone}</p>
-                              </td>
-                              <td className="py-3 px-4 font-mono text-slate-300">
-                                {k.fssai_number}
-                              </td>
-                              <td className="py-3 px-4 font-mono text-slate-300">
-                                {k.fryer_capacity_liters} L
-                              </td>
-                              <td className="py-3 px-4">
-                                {k.pickup_requested ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-bold text-amber-300">
-                                    ● DRUM FULL (REQUESTED)
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-400">
-                                    ● ACTIVE
-                                  </span>
-                                )}
-                              </td>
-                              <td className="py-3 px-4 font-mono font-bold text-emerald-400">
-                                {kTotalKg.toFixed(1)} kg ({kPickups.length})
-                              </td>
-                              <td className="py-3 px-4 font-mono text-[11px] text-sky-400">
-                                {k.login_id || 'kitchen@provene.in'}
-                                <span className="text-slate-500 block">
-                                  Pass: {k.password || 'kitchen123'}
+                      {filteredKitchens.map((k) => {
+                        const kPickups = collections.filter((c) => c.kitchen_id === k.id);
+                        const kTotalKg = kPickups.reduce(
+                          (s, c) => s + Number(c.weight_kg || 0),
+                          0
+                        );
+                        const isChecked = selectedKitchenIds.includes(k.id);
+                        return (
+                          <tr
+                            key={k.id}
+                            className={`hover:bg-slate-800/30 ${isChecked ? 'bg-sky-950/20' : ''
+                              }`}
+                          >
+                            <td className="py-3 px-3">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => toggleSelectKitchen(k.id)}
+                                className="rounded border-slate-700 bg-slate-900"
+                              />
+                            </td>
+                            <td className="py-3 px-4">
+                              <p className="font-bold text-white">{k.name}</p>
+                              <p className="text-[11px] text-slate-400">{k.address}</p>
+                            </td>
+                            <td className="py-3 px-4">
+                              <select
+                                value={k.group_name || 'Ungrouped'}
+                                onChange={(e) =>
+                                  handleSingleKitchenGroupChange(k.id, e.target.value)
+                                }
+                                className="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1 text-[11px] font-semibold text-sky-400 focus:border-emerald-500 focus:outline-none"
+                              >
+                                <option value="Ungrouped">Ungrouped</option>
+                                {customGroups.map((g) => (
+                                  <option key={g} value={g}>
+                                    {g}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="py-3 px-4">
+                              <p className="text-slate-200">{k.owner_name}</p>
+                              <p className="font-mono text-[11px] text-slate-400">{k.phone}</p>
+                            </td>
+                            <td className="py-3 px-4 font-mono text-slate-300">
+                              {k.fssai_number}
+                            </td>
+                            <td className="py-3 px-4 font-mono text-slate-300">
+                              {k.fryer_capacity_liters} L
+                            </td>
+                            <td className="py-3 px-4">
+                              {k.pickup_requested ? (
+                                <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-bold text-amber-300">
+                                  ● DRUM FULL (REQUESTED)
                                 </span>
-                              </td>
-                              <td className="py-3 px-4 text-right">
-                                <button
-                                  onClick={async () => {
-                                    if (!confirm(`Delete ${k.name}?`)) return;
-                                    await supabase
-                                      .from('collections')
-                                      .delete()
-                                      .eq('kitchen_id', k.id);
-                                    await supabase.from('kitchens').delete().eq('id', k.id);
-                                    fetchAllData();
-                                  }}
-                                  className="rounded border border-red-500/30 bg-red-500/10 p-1.5 text-red-400 hover:bg-red-500/20"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
+                              ) : (
+                                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-400">
+                                  ● ACTIVE
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 font-mono font-bold text-emerald-400">
+                              {kTotalKg.toFixed(1)} kg ({kPickups.length})
+                            </td>
+                            <td className="py-3 px-4 font-mono text-[11px] text-sky-400">
+                              {k.login_id || 'kitchen@provene.in'}
+                              <span className="text-slate-500 block">
+                                Pass: {k.password || 'kitchen123'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <button
+                                onClick={async () => {
+                                  if (!confirm(`Delete ${k.name}?`)) return;
+                                  await supabase
+                                    .from('collections')
+                                    .delete()
+                                    .eq('kitchen_id', k.id);
+                                  await supabase.from('kitchens').delete().eq('id', k.id);
+                                  fetchAllData();
+                                }}
+                                className="rounded border border-red-500/30 bg-red-500/10 p-1.5 text-red-400 hover:bg-red-500/20"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1230,31 +1482,66 @@ export default function ProveneEnterpriseOpsHub() {
                     />
                   </div>
                 </div>
+
                 <div>
-                  <label className="block text-slate-300 mb-1">Cluster Location Preset</label>
-                  <div className="flex gap-2">
-                    {CLUSTER_PRESETS.map((p) => (
-                      <button
-                        key={p.label}
-                        type="button"
-                        onClick={() => {
-                          setKLat(p.lat);
-                          setKLng(p.lng);
-                          setKAddress(p.address);
-                        }}
-                        className="rounded border border-slate-700 bg-slate-900 px-2.5 py-1 text-[11px] text-slate-300 hover:border-emerald-500"
-                      >
-                        {p.label}
-                      </button>
+                  <label className="block text-slate-300 mb-1">
+                    Custom Group (Optional — select or type new)
+                  </label>
+                  <input
+                    list="provene-custom-groups"
+                    value={kGroup}
+                    onChange={(e) => setKGroup(e.target.value)}
+                    placeholder="Ungrouped"
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sky-400"
+                  />
+                  <datalist id="provene-custom-groups">
+                    <option value="Ungrouped" />
+                    {customGroups.map((g) => (
+                      <option key={g} value={g} />
                     ))}
+                  </datalist>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-slate-300">GPS Coordinates (Lat / Lng) *</label>
+                    <button
+                      type="button"
+                      onClick={handleUseCurrentGpsForKitchen}
+                      className="inline-flex items-center gap-1 rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 hover:bg-emerald-500/20"
+                    >
+                      <Navigation className="h-3 w-3" /> Use Current GPS
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="number"
+                      step="any"
+                      required
+                      value={kLat}
+                      onChange={(e) => setKLat(Number(e.target.value))}
+                      placeholder="Latitude"
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-white"
+                    />
+                    <input
+                      type="number"
+                      step="any"
+                      required
+                      value={kLng}
+                      onChange={(e) => setKLng(Number(e.target.value))}
+                      placeholder="Longitude"
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-white"
+                    />
                   </div>
                 </div>
+
                 <div>
                   <label className="block text-slate-300 mb-1">Street Address *</label>
                   <input
                     required
                     value={kAddress}
                     onChange={(e) => setKAddress(e.target.value)}
+                    placeholder="Enter full outlet address"
                     className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
                   />
                 </div>
@@ -1319,7 +1606,7 @@ export default function ProveneEnterpriseOpsHub() {
                       required
                       value={dVehicle}
                       onChange={(e) => setDVehicle(e.target.value)}
-                      placeholder="UP16 AB 4921"
+                      placeholder="DL 1L AA 1234"
                       className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
                     />
                   </div>
@@ -1340,8 +1627,8 @@ export default function ProveneEnterpriseOpsHub() {
                       type="button"
                       onClick={() => setDType('PROVENE_HIRED')}
                       className={`rounded-lg border py-2 font-bold ${dType === 'PROVENE_HIRED'
-                        ? 'border-emerald-500 bg-emerald-500/15 text-emerald-300'
-                        : 'border-slate-800 text-slate-400'
+                          ? 'border-emerald-500 bg-emerald-500/15 text-emerald-300'
+                          : 'border-slate-800 text-slate-400'
                         }`}
                     >
                       Provene In-House
@@ -1350,8 +1637,8 @@ export default function ProveneEnterpriseOpsHub() {
                       type="button"
                       onClick={() => setDType('THIRD_PARTY')}
                       className={`rounded-lg border py-2 font-bold ${dType === 'THIRD_PARTY'
-                        ? 'border-amber-500 bg-amber-500/15 text-amber-300'
-                        : 'border-slate-800 text-slate-400'
+                          ? 'border-amber-500 bg-amber-500/15 text-amber-300'
+                          : 'border-slate-800 text-slate-400'
                         }`}
                     >
                       3PL Aggregator
