@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import {
@@ -32,10 +32,20 @@ export default function LoginPage() {
   const [resetError, setResetError] = useState('');
   const [resetSuccess, setResetSuccess] = useState('');
   const [matchedRecord, setMatchedRecord] = useState<{
-    table: 'kitchens' | 'drivers' | 'employees';
+    table: 'kitchens' | 'drivers' | 'aggregators' | 'employees';
     id: string;
     name: string;
   } | null>(null);
+
+  // Auto-open Reset Modal if navigated from Navbar (/login?mode=reset)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('mode') === 'reset') {
+        setResetModalOpen(true);
+      }
+    }
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,7 +61,7 @@ export default function LoginPage() {
 
     setLoading(true);
 
-    // 1. Founder Master Login (checks custom saved master password or default provene@2026)
+    // 1. Founder Master Login -> Routes to /master
     const customFounderPass =
       typeof window !== 'undefined'
         ? localStorage.getItem('provene_founder_pass') || 'provene@2026'
@@ -63,13 +73,13 @@ export default function LoginPage() {
     ) {
       localStorage.setItem(
         'provene_session',
-        JSON.stringify({ role: 'OPS_HUB', name: 'Parth Gupta (Founder)', login_id: cleanId })
+        JSON.stringify({ role: 'FOUNDER', name: 'Parth Gupta (Founder)', login_id: cleanId })
       );
       router.push('/master');
       return;
     }
 
-    // 2. Check Internal Company Employees Table -> Routes to Ops Hub (/master)
+    // 2. Check Internal Company Employees Table -> Routes to /ops (or /master if Founder role)
     const { data: empData } = await supabase
       .from('employees')
       .select('*')
@@ -78,20 +88,73 @@ export default function LoginPage() {
       .maybeSingle();
 
     if (empData) {
+      const isFounderRole = (empData.role || '').toLowerCase().includes('founder');
       localStorage.setItem(
         'provene_session',
         JSON.stringify({
-          role: 'OPS_HUB',
+          role: isFounderRole ? 'FOUNDER' : 'OPS_EMPLOYEE',
           id: empData.id,
           name: `${empData.name} (${empData.role})`,
           login_id: empData.login_id,
         })
       );
-      router.push('/master');
+      router.push(isFounderRole ? '/master' : '/ops');
       return;
     }
 
-    // 3. Check Onboarded Kitchens Table -> Routes to Restaurant Portal (/kitchen)
+    // Default fallback Ops Employee login
+    if (cleanId === 'ops@provene.in' && cleanPass === 'ops123') {
+      localStorage.setItem(
+        'provene_session',
+        JSON.stringify({
+          role: 'OPS_EMPLOYEE',
+          name: 'Operations Dispatcher',
+          login_id: cleanId,
+        })
+      );
+      router.push('/ops');
+      return;
+    }
+
+    // 3. Check Onboarded Aggregators / Refinery Buyers Table -> Routes to /aggregator
+    const { data: aggData } = await supabase
+      .from('aggregators')
+      .select('*')
+      .ilike('login_id', cleanId)
+      .eq('password', cleanPass)
+      .maybeSingle();
+
+    if (aggData) {
+      localStorage.setItem(
+        'provene_session',
+        JSON.stringify({
+          role: 'AGGREGATOR',
+          id: aggData.id,
+          name: aggData.company_name,
+          contact_person: aggData.contact_person,
+          login_id: aggData.login_id,
+        })
+      );
+      router.push('/aggregator');
+      return;
+    }
+
+    // Default fallback Aggregator login
+    if (cleanId === 'aggregator@provene.in' && cleanPass === 'buyer123') {
+      localStorage.setItem(
+        'provene_session',
+        JSON.stringify({
+          role: 'AGGREGATOR',
+          id: 'ALL',
+          name: 'Biofuel Offtake Aggregator',
+          login_id: cleanId,
+        })
+      );
+      router.push('/aggregator');
+      return;
+    }
+
+    // 4. Check Onboarded Kitchens Table -> Routes to Restaurant Portal (/kitchen)
     const { data: kitchenData } = await supabase
       .from('kitchens')
       .select('*')
@@ -123,7 +186,7 @@ export default function LoginPage() {
       return;
     }
 
-    // 4. Check Onboarded Drivers Table -> Routes to Driver Portal (/driver)
+    // 5. Check Onboarded Drivers Table -> Routes to Driver Portal (/driver)
     const { data: driverData } = await supabase
       .from('drivers')
       .select('*')
@@ -215,7 +278,23 @@ export default function LoginPage() {
       return;
     }
 
-    // 3. Check Employees
+    // 3. Check Aggregators / Buyers
+    const { data: aMatch } = await supabase
+      .from('aggregators')
+      .select('id, company_name, phone')
+      .ilike('login_id', idToFind);
+    const matchedA = aMatch?.find((a) => (a.phone || '').replace(/\D/g, '') === phoneToFind);
+    if (matchedA) {
+      setMatchedRecord({
+        table: 'aggregators',
+        id: matchedA.id,
+        name: matchedA.company_name,
+      });
+      setResetStep('NEW_PASSWORD');
+      return;
+    }
+
+    // 4. Check Employees
     const { data: eMatch } = await supabase
       .from('employees')
       .select('id, name, phone')
@@ -383,7 +462,7 @@ export default function LoginPage() {
                     required
                     value={resetLoginId}
                     onChange={(e) => setResetLoginId(e.target.value)}
-                    placeholder="e.g. outlet@provene.in or driver@provene.in"
+                    placeholder="e.g. outlet@provene.in, driver@provene.in, buyer@provene.in"
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-emerald-600 focus:outline-none"
                   />
                 </div>

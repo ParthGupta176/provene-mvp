@@ -41,7 +41,7 @@ export default function HomePage() {
   const [resetError, setResetError] = useState('');
   const [resetSuccess, setResetSuccess] = useState('');
   const [matchedRecord, setMatchedRecord] = useState<{
-    table: 'kitchens' | 'drivers' | 'employees';
+    table: 'kitchens' | 'drivers' | 'aggregators' | 'employees';
     id: string;
     name: string;
   } | null>(null);
@@ -114,7 +114,23 @@ export default function HomePage() {
       return;
     }
 
-    // 3. Check Employees
+    // 3. Check Aggregators
+    const { data: aMatch } = await supabase
+      .from('aggregators')
+      .select('id, company_name, phone')
+      .ilike('login_id', idToFind);
+    const matchedA = aMatch?.find((a) => (a.phone || '').replace(/\D/g, '') === phoneToFind);
+    if (matchedA) {
+      setMatchedRecord({
+        table: 'aggregators',
+        id: matchedA.id,
+        name: matchedA.company_name,
+      });
+      setResetStep('NEW_PASSWORD');
+      return;
+    }
+
+    // 4. Check Employees
     const { data: eMatch } = await supabase
       .from('employees')
       .select('id, name, phone')
@@ -491,7 +507,7 @@ export default function HomePage() {
                 Role-Based Access
               </span>
               <h2 className="text-2xl font-extrabold text-slate-900">
-                Three Connected Portals for Kitchens, Drivers & Operations
+                Connected Portals for Kitchens, Drivers, Buyers & Operations
               </h2>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -513,14 +529,14 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 space-y-3">
               <div className="inline-flex items-center gap-2 text-emerald-700 font-bold text-sm">
                 <Store className="h-5 w-5" /> 1. Kitchen Partner Portal
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Request urgent pickups when oil capacity is full, view scheduled arrival times,
-                track completed collection history, and download date-wise FSSAI disposal ledgers.
+                Request urgent pickups when oil capacity is full, view scheduled arrival times, and
+                download date-wise FSSAI disposal ledgers.
               </p>
             </div>
 
@@ -530,17 +546,27 @@ export default function HomePage() {
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
                 View assigned pickup routes, open Google Maps navigation, verify doorstep proximity
-                (&lt;200m), log locked oil weights, and complete drop-off handovers.
+                (&lt;200m), and log locked oil weights.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 space-y-3">
+              <div className="inline-flex items-center gap-2 text-amber-700 font-bold text-sm">
+                <Building2 className="h-5 w-5" /> 3. Buyer & Aggregator Portal
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Monitor total oil purchased, track monthly capacity allocation, manage dedicated
+                3PL fleet drivers, and export intake ledgers.
               </p>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 space-y-3">
               <div className="inline-flex items-center gap-2 text-purple-700 font-bold text-sm">
-                <ShieldCheck className="h-5 w-5" /> 3. Provene Ops Hub
+                <ShieldCheck className="h-5 w-5" /> 4. Provene Ops & Admin Hub
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Internal operations console to onboard kitchens, manage in-house and third-party
-                aggregator drivers, monitor live inventory, and dispatch oil to buyers.
+                Operations dispatch console and Founder master hub to manage kitchens, fleets,
+                custom groups, and bulk buyer dispatches.
               </p>
             </div>
           </div>
@@ -610,6 +636,11 @@ export default function HomePage() {
               </li>
               <li>
                 <Link href="/login" className="hover:text-emerald-600">
+                  Buyer & Aggregator Portal
+                </Link>
+              </li>
+              <li>
+                <Link href="/login" className="hover:text-emerald-600">
                   Provene Ops Hub
                 </Link>
               </li>
@@ -671,7 +702,7 @@ export default function HomePage() {
                     required
                     value={resetLoginId}
                     onChange={(e) => setResetLoginId(e.target.value)}
-                    placeholder="e.g. outlet@provene.in or driver@provene.in"
+                    placeholder="e.g. outlet@provene.in, driver@provene.in, buyer@provene.in"
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-emerald-600 focus:outline-none"
                   />
                 </div>

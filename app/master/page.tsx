@@ -54,7 +54,7 @@ export default function ProveneEnterpriseOpsHub() {
 
   // Modal State for Changing ANY User's Password (or Founder's Own Password)
   const [passwordTarget, setPasswordTarget] = useState<{
-    table: 'kitchens' | 'drivers' | 'employees' | 'FOUNDER_SELF';
+    table: 'kitchens' | 'drivers' | 'aggregators' | 'employees' | 'FOUNDER_SELF';
     id: string;
     name: string;
   } | null>(null);
@@ -103,6 +103,8 @@ export default function ProveneEnterpriseOpsHub() {
   const [aMinCap, setAMinCap] = useState<number>(200);
   const [aMaxCap, setAMaxCap] = useState<number>(5000);
   const [aRate, setARate] = useState<number>(48);
+  const [aLoginId, setALoginId] = useState('');
+  const [aPassword, setAPassword] = useState('');
 
   const [eName, setEName] = useState('');
   const [eRole, setERole] = useState('Operations Manager');
@@ -222,8 +224,9 @@ export default function ProveneEnterpriseOpsHub() {
 
         marker.bindPopup(
           `<div style="color:#0f172a;font-family:sans-serif;font-size:12px;line-height:1.4;">
-            <strong>${k.name}</strong> <span style="background:#e2e8f0;padding:1px 5px;border-radius:4px;font-size:10px;">${k.group_name || 'Ungrouped'
-          }</span><br/>
+            <strong>${k.name}</strong> <span style="background:#e2e8f0;padding:1px 5px;border-radius:4px;font-size:10px;">${
+              k.group_name || 'Ungrouped'
+            }</span><br/>
             <span style="color:#475569;">${k.address}</span><br/>
             <span>Fryer: <b>${k.fryer_capacity_liters}L</b> • FSSAI: ${k.fssai_number}</span>
           </div>`
@@ -439,15 +442,19 @@ export default function ProveneEnterpriseOpsHub() {
         max_capacity_kg: Number(aMaxCap),
         rate_per_kg: Number(aRate),
         oil_bought_kg: 0,
+        login_id: aLoginId.trim().toLowerCase(),
+        password: aPassword.trim(),
       },
     ]);
 
     if (!error) {
-      notify(`Registered Buyer ${aCompany}`);
+      notify(`Registered Buyer ${aCompany} (${aLoginId})`);
       setACompany('');
       setAContact('');
       setAPhone('');
       setAGst('');
+      setALoginId('');
+      setAPassword('');
       setActiveDrawer('NONE');
       await fetchAllData();
     } else {
@@ -531,8 +538,9 @@ export default function ProveneEnterpriseOpsHub() {
     <div className="flex h-screen w-full overflow-hidden bg-[#090d16] text-slate-100">
       {/* LEFT ENTERPRISE SIDEBAR */}
       <aside
-        className={`${sidebarOpen ? 'w-60' : 'w-16'
-          } shrink-0 border-r border-slate-800/80 bg-[#0b101b] flex flex-col justify-between transition-all duration-200 z-30`}
+        className={`${
+          sidebarOpen ? 'w-60' : 'w-16'
+        } shrink-0 border-r border-slate-800/80 bg-[#0b101b] flex flex-col justify-between transition-all duration-200 z-30`}
       >
         <div>
           <div className="flex h-14 items-center justify-between border-b border-slate-800/80 px-4">
@@ -560,10 +568,11 @@ export default function ProveneEnterpriseOpsHub() {
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
                   title={item.label}
-                  className={`w-full flex items-center justify-between rounded-lg px-3 py-2.5 text-xs font-medium transition ${active
+                  className={`w-full flex items-center justify-between rounded-lg px-3 py-2.5 text-xs font-medium transition ${
+                    active
                       ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold'
                       : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 border border-transparent'
-                    }`}
+                  }`}
                 >
                   <div className="flex items-center gap-3">
                     <Icon className="h-4 w-4 shrink-0" />
@@ -585,7 +594,7 @@ export default function ProveneEnterpriseOpsHub() {
           {sidebarOpen && (
             <div className="rounded-lg bg-slate-900/90 px-3 py-2 border border-slate-800/80">
               <p className="text-xs font-semibold text-white truncate">{operatorName}</p>
-              <p className="text-[10px] text-emerald-400 font-mono">Operations Administrator</p>
+              <p className="text-[10px] text-emerald-400 font-mono">Founder Super Admin</p>
             </div>
           )}
 
@@ -917,19 +926,21 @@ export default function ProveneEnterpriseOpsHub() {
                     </span>
                     <button
                       onClick={() => setActiveGroupFilter('ALL')}
-                      className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${activeGroupFilter === 'ALL'
+                      className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                        activeGroupFilter === 'ALL'
                           ? 'bg-emerald-500 text-slate-950'
                           : 'bg-slate-900 text-slate-300 hover:bg-slate-800'
-                        }`}
+                      }`}
                     >
                       All ({kitchens.length})
                     </button>
                     <button
                       onClick={() => setActiveGroupFilter('Ungrouped')}
-                      className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${activeGroupFilter === 'Ungrouped'
+                      className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                        activeGroupFilter === 'Ungrouped'
                           ? 'bg-emerald-500 text-slate-950'
                           : 'bg-slate-900 text-slate-400 hover:bg-slate-800'
-                        }`}
+                      }`}
                     >
                       Ungrouped (
                       {kitchens.filter((k) => !k.group_name || k.group_name === 'Ungrouped').length}
@@ -941,10 +952,11 @@ export default function ProveneEnterpriseOpsHub() {
                         <button
                           key={group}
                           onClick={() => setActiveGroupFilter(group)}
-                          className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${activeGroupFilter === group
+                          className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                            activeGroupFilter === group
                               ? 'bg-emerald-500 text-slate-950'
                               : 'bg-slate-900 text-sky-400 border border-sky-500/20 hover:bg-slate-800'
-                            }`}
+                          }`}
                         >
                           {group} ({count})
                         </button>
@@ -1050,8 +1062,9 @@ export default function ProveneEnterpriseOpsHub() {
                         return (
                           <tr
                             key={k.id}
-                            className={`hover:bg-slate-800/30 ${isChecked ? 'bg-sky-950/20' : ''
-                              }`}
+                            className={`hover:bg-slate-800/30 ${
+                              isChecked ? 'bg-sky-950/20' : ''
+                            }`}
                           >
                             <td className="py-3 px-3">
                               <input
@@ -1266,8 +1279,8 @@ export default function ProveneEnterpriseOpsHub() {
                     Certified Offtake Buyers & Aggregators ({aggregators.length})
                   </h1>
                   <p className="text-xs text-slate-400">
-                    Track minimum lot sizes, monthly offtake capacities, contracted rates, and
-                    assigned 3PL drivers.
+                    Track minimum lot sizes, monthly capacities, contracted rates, 3PL drivers, and
+                    buyer portal credentials.
                   </p>
                 </div>
                 <button
@@ -1288,7 +1301,8 @@ export default function ProveneEnterpriseOpsHub() {
                         <th className="py-3 px-4">Min / Max Capacity</th>
                         <th className="py-3 px-4">Contract Rate</th>
                         <th className="py-3 px-4">Total Oil Purchased</th>
-                        <th className="py-3 px-4">3PL Drivers Under Buyer</th>
+                        <th className="py-3 px-4">3PL Drivers</th>
+                        <th className="py-3 px-4">Portal Login ID / Pass</th>
                         <th className="py-3 px-4 text-right">Dispatch</th>
                       </tr>
                     </thead>
@@ -1342,6 +1356,27 @@ export default function ProveneEnterpriseOpsHub() {
                                 {assignedDrivers.length} Drivers
                               </span>
                             </td>
+                            <td className="py-3 px-4 font-mono text-[11px]">
+                              <span className="text-amber-300 block">
+                                {a.login_id || 'aggregator@provene.in'}
+                              </span>
+                              <span className="text-slate-400 block">
+                                Pass: {a.password || 'buyer123'}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  setTargetNewPassword('');
+                                  setPasswordTarget({
+                                    table: 'aggregators',
+                                    id: a.id,
+                                    name: a.company_name,
+                                  });
+                                }}
+                                className="mt-1 inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300 hover:bg-amber-500/20"
+                              >
+                                <KeyRound className="h-2.5 w-2.5" /> Change Pass
+                              </button>
+                            </td>
                             <td className="py-3 px-4 text-right">
                               <button
                                 onClick={() => handleDispatchBatchToBuyer(a)}
@@ -1369,7 +1404,7 @@ export default function ProveneEnterpriseOpsHub() {
                     Internal Team & Access Management ({employees.length + 1})
                   </h1>
                   <p className="text-xs text-slate-400">
-                    Manage internal Provene employees and reset staff passwords.
+                    Manage internal Provene employees (routed to /ops) and reset staff passwords.
                   </p>
                 </div>
                 <button
@@ -1387,7 +1422,7 @@ export default function ProveneEnterpriseOpsHub() {
                       <th className="py-3 px-4">Employee Name</th>
                       <th className="py-3 px-4">Role / Department</th>
                       <th className="py-3 px-4">Phone</th>
-                      <th className="py-3 px-4">Ops Hub Login ID</th>
+                      <th className="py-3 px-4">Ops Portal Login ID</th>
                       <th className="py-3 px-4">Password</th>
                       <th className="py-3 px-4 text-right">Action</th>
                     </tr>
@@ -1396,7 +1431,7 @@ export default function ProveneEnterpriseOpsHub() {
                     <tr className="bg-purple-950/15">
                       <td className="py-3 px-4 font-bold text-white">Parth Gupta</td>
                       <td className="py-3 px-4 text-purple-300 font-semibold">
-                        Founder / Super Admin
+                        Founder / Super Admin (/master)
                       </td>
                       <td className="py-3 px-4 font-mono text-slate-400">Primary Owner</td>
                       <td className="py-3 px-4 font-mono text-purple-300">founder@provene.in</td>
@@ -1423,7 +1458,7 @@ export default function ProveneEnterpriseOpsHub() {
                     {employees.map((emp) => (
                       <tr key={emp.id} className="hover:bg-slate-800/30">
                         <td className="py-3 px-4 font-bold text-white">{emp.name}</td>
-                        <td className="py-3 px-4 text-slate-300">{emp.role}</td>
+                        <td className="py-3 px-4 text-slate-300">{emp.role} (/ops)</td>
                         <td className="py-3 px-4 font-mono text-slate-400">{emp.phone}</td>
                         <td className="py-3 px-4 font-mono text-emerald-400">{emp.login_id}</td>
                         <td className="py-3 px-4 font-mono text-slate-300">
@@ -1778,20 +1813,22 @@ export default function ProveneEnterpriseOpsHub() {
                     <button
                       type="button"
                       onClick={() => setDType('PROVENE_HIRED')}
-                      className={`rounded-lg border py-2 font-bold ${dType === 'PROVENE_HIRED'
+                      className={`rounded-lg border py-2 font-bold ${
+                        dType === 'PROVENE_HIRED'
                           ? 'border-emerald-500 bg-emerald-500/15 text-emerald-300'
                           : 'border-slate-800 text-slate-400'
-                        }`}
+                      }`}
                     >
                       Provene In-House
                     </button>
                     <button
                       type="button"
                       onClick={() => setDType('THIRD_PARTY')}
-                      className={`rounded-lg border py-2 font-bold ${dType === 'THIRD_PARTY'
+                      className={`rounded-lg border py-2 font-bold ${
+                        dType === 'THIRD_PARTY'
                           ? 'border-amber-500 bg-amber-500/15 text-amber-300'
                           : 'border-slate-800 text-slate-400'
-                        }`}
+                      }`}
                     >
                       3PL Aggregator
                     </button>
@@ -1913,6 +1950,30 @@ export default function ProveneEnterpriseOpsHub() {
                     />
                   </div>
                 </div>
+                <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-3 space-y-3">
+                  <span className="font-bold text-amber-300 block">
+                    Aggregator Portal Login Credentials (/aggregator)
+                  </span>
+                  <div>
+                    <label className="block text-slate-300 mb-1">Buyer Login ID *</label>
+                    <input
+                      required
+                      value={aLoginId}
+                      onChange={(e) => setALoginId(e.target.value)}
+                      placeholder="buyer@provene.in"
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 mb-1">Password *</label>
+                    <input
+                      required
+                      value={aPassword}
+                      onChange={(e) => setAPassword(e.target.value)}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+                    />
+                  </div>
+                </div>
                 <button
                   type="submit"
                   className="w-full rounded-lg bg-amber-500 py-3 font-bold text-slate-950 hover:bg-amber-400"
@@ -1952,7 +2013,7 @@ export default function ProveneEnterpriseOpsHub() {
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 mb-1">Ops Hub Login ID *</label>
+                  <label className="block text-slate-300 mb-1">Ops Portal Login ID *</label>
                   <input
                     required
                     value={eLoginId}
@@ -1974,7 +2035,7 @@ export default function ProveneEnterpriseOpsHub() {
                   type="submit"
                   className="w-full rounded-lg bg-purple-500 py-3 font-bold text-slate-950 hover:bg-purple-400"
                 >
-                  Grant Ops Hub Access
+                  Grant Operations Portal Access (/ops)
                 </button>
               </form>
             )}
