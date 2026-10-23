@@ -19,6 +19,9 @@ import {
   IndianRupee,
   Clock,
   Home,
+  KeyRound,
+  X,
+  Phone,
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -27,6 +30,21 @@ export default function HomePage() {
     totalUcoKg: 0,
     totalPickups: 0,
   });
+
+  // Self-Service Password Reset Modal State
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetStep, setResetStep] = useState<'VERIFY' | 'NEW_PASSWORD'>('VERIFY');
+  const [resetLoginId, setResetLoginId] = useState('');
+  const [resetPhone, setResetPhone] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetError, setResetError] = useState('');
+  const [resetSuccess, setResetSuccess] = useState('');
+  const [matchedRecord, setMatchedRecord] = useState<{
+    table: 'kitchens' | 'drivers' | 'employees';
+    id: string;
+    name: string;
+  } | null>(null);
 
   useEffect(() => {
     async function loadStats() {
@@ -48,6 +66,96 @@ export default function HomePage() {
     }
     loadStats();
   }, []);
+
+  const openResetModal = () => {
+    setResetError('');
+    setResetSuccess('');
+    setResetStep('VERIFY');
+    setResetLoginId('');
+    setResetPhone('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setMatchedRecord(null);
+    setResetModalOpen(true);
+  };
+
+  const handleVerifyIdentity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError('');
+    const idToFind = resetLoginId.trim().toLowerCase();
+    const phoneToFind = resetPhone.trim().replace(/\D/g, '');
+
+    if (!idToFind || !phoneToFind) {
+      setResetError('Please enter both your Login ID and Mobile Number.');
+      return;
+    }
+
+    // 1. Check Kitchens
+    const { data: kMatch } = await supabase
+      .from('kitchens')
+      .select('id, name, phone')
+      .ilike('login_id', idToFind);
+    const matchedK = kMatch?.find((k) => (k.phone || '').replace(/\D/g, '') === phoneToFind);
+    if (matchedK) {
+      setMatchedRecord({ table: 'kitchens', id: matchedK.id, name: matchedK.name });
+      setResetStep('NEW_PASSWORD');
+      return;
+    }
+
+    // 2. Check Drivers
+    const { data: dMatch } = await supabase
+      .from('drivers')
+      .select('id, name, phone')
+      .ilike('login_id', idToFind);
+    const matchedD = dMatch?.find((d) => (d.phone || '').replace(/\D/g, '') === phoneToFind);
+    if (matchedD) {
+      setMatchedRecord({ table: 'drivers', id: matchedD.id, name: matchedD.name });
+      setResetStep('NEW_PASSWORD');
+      return;
+    }
+
+    // 3. Check Employees
+    const { data: eMatch } = await supabase
+      .from('employees')
+      .select('id, name, phone')
+      .ilike('login_id', idToFind);
+    const matchedE = eMatch?.find((emp) => (emp.phone || '').replace(/\D/g, '') === phoneToFind);
+    if (matchedE) {
+      setMatchedRecord({ table: 'employees', id: matchedE.id, name: matchedE.name });
+      setResetStep('NEW_PASSWORD');
+      return;
+    }
+
+    setResetError('No account found matching that Login ID and Mobile Number.');
+  };
+
+  const handleSaveNewPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError('');
+    if (newPassword.trim().length < 4) {
+      setResetError('Password must be at least 4 characters.');
+      return;
+    }
+    if (newPassword.trim() !== confirmPassword.trim()) {
+      setResetError('Passwords do not match.');
+      return;
+    }
+    if (!matchedRecord) return;
+
+    const { error } = await supabase
+      .from(matchedRecord.table)
+      .update({ password: newPassword.trim() })
+      .eq('id', matchedRecord.id);
+
+    if (!error) {
+      setResetSuccess(`Password updated for ${matchedRecord.name}! You can now sign in.`);
+      setTimeout(() => {
+        setResetModalOpen(false);
+      }, 1800);
+    } else {
+      setResetError(error.message);
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col justify-between text-slate-900">
@@ -89,23 +197,31 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-4 pt-2">
+              <div className="flex flex-wrap items-center gap-3 pt-2">
                 <Link
                   href="/login"
                   className="flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3.5 text-sm font-bold text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700"
                 >
                   Portal Login <ArrowRight className="h-4 w-4" />
                 </Link>
+                <button
+                  type="button"
+                  onClick={openResetModal}
+                  className="flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-5 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                >
+                  <KeyRound className="h-4 w-4 text-emerald-600" />
+                  Forgot / Reset Password
+                </button>
                 <a
                   href="#process"
-                  className="rounded-xl border border-slate-300 bg-slate-50 px-6 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                  className="rounded-xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
                 >
                   See How It Works
                 </a>
               </div>
             </div>
 
-            {/* Live Impact Summary (Connected to Real Supabase Database) */}
+            {/* Live Impact Summary */}
             <div className="lg:col-span-5 rounded-2xl border border-slate-200 bg-slate-50 p-6 space-y-5">
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <div>
@@ -209,7 +325,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* 3. WHO WE SERVE (Commercial + Residential Households) */}
+        {/* 3. WHO WE SERVE */}
         <section id="who-we-serve" className="space-y-8">
           <div className="text-center max-w-3xl mx-auto space-y-2">
             <span className="text-xs font-bold uppercase tracking-widest text-emerald-600">
@@ -224,7 +340,6 @@ export default function HomePage() {
             </p>
           </div>
 
-          {/* 4-Card Establishments Grid */}
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-2.5 shadow-2xs">
               <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
@@ -271,7 +386,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Core Benefits Strip */}
           <div id="compliance" className="grid gap-6 md:grid-cols-3 pt-2">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 space-y-2">
               <div className="flex items-center gap-2 font-bold text-sm text-slate-900">
@@ -380,13 +494,23 @@ export default function HomePage() {
                 Three Connected Portals for Kitchens, Drivers & Operations
               </h2>
             </div>
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-xs font-bold text-white hover:bg-slate-800"
-            >
-              <Lock className="h-4 w-4 text-emerald-400" />
-              Sign In to Portal
-            </Link>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={openResetModal}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-100"
+              >
+                <KeyRound className="h-4 w-4 text-emerald-600" />
+                Reset Password
+              </button>
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-xs font-bold text-white hover:bg-slate-800"
+              >
+                <Lock className="h-4 w-4 text-emerald-400" />
+                Sign In to Portal
+              </Link>
+            </div>
           </div>
 
           <div className="grid gap-6 md:grid-cols-3">
@@ -423,7 +547,7 @@ export default function HomePage() {
         </section>
       </div>
 
-      {/* 6. CLEAN, FACTUAL FOOTER (Zero Fake Phones, Emails, or Copyright Claims) */}
+      {/* 6. CLEAN, FACTUAL FOOTER */}
       <footer className="border-t border-slate-200 bg-white text-slate-600">
         <div className="mx-auto max-w-7xl px-4 py-10 grid gap-8 md:grid-cols-12 text-xs">
           <div className="md:col-span-6 space-y-3">
@@ -489,10 +613,131 @@ export default function HomePage() {
                   Provene Ops Hub
                 </Link>
               </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={openResetModal}
+                  className="text-emerald-700 font-semibold hover:underline"
+                >
+                  Forgot / Reset Password
+                </button>
+              </li>
             </ul>
           </div>
         </div>
       </footer>
+
+      {/* SELF-SERVICE PASSWORD RESET MODAL ON HOME SCREEN */}
+      {resetModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <KeyRound className="h-4 w-4 text-emerald-600" />
+                <span className="text-sm font-bold text-slate-900">
+                  Forgot / Reset Portal Password
+                </span>
+              </div>
+              <button
+                onClick={() => setResetModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {resetError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-700">
+                {resetError}
+              </div>
+            )}
+
+            {resetSuccess && (
+              <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-700">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                {resetSuccess}
+              </div>
+            )}
+
+            {resetStep === 'VERIFY' ? (
+              <form onSubmit={handleVerifyIdentity} className="space-y-3 text-xs">
+                <p className="text-slate-600">
+                  Enter your assigned <strong>Login ID</strong> and{' '}
+                  <strong>Registered Mobile Number</strong> to reset your password.
+                </p>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Login ID *</label>
+                  <input
+                    required
+                    value={resetLoginId}
+                    onChange={(e) => setResetLoginId(e.target.value)}
+                    placeholder="e.g. outlet@provene.in or driver@provene.in"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-emerald-600 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Registered Mobile Number *
+                  </label>
+                  <div className="relative">
+                    <Phone className="h-4 w-4 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      required
+                      value={resetPhone}
+                      onChange={(e) => setResetPhone(e.target.value)}
+                      placeholder="Enter registered mobile number"
+                      className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-slate-900 focus:border-emerald-600 focus:outline-none"
+                    />
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  className="w-full rounded-lg bg-emerald-600 py-2.5 font-bold text-white hover:bg-emerald-700"
+                >
+                  Verify Account
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleSaveNewPassword} className="space-y-3 text-xs">
+                <p className="text-slate-600">
+                  Account verified for <strong>{matchedRecord?.name}</strong>. Set your new
+                  password:
+                </p>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">New Password *</label>
+                  <input
+                    type="password"
+                    required
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-emerald-600 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Confirm New Password *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-emerald-600 focus:outline-none"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full rounded-lg bg-emerald-600 py-2.5 font-bold text-white hover:bg-emerald-700"
+                >
+                  Update Password
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

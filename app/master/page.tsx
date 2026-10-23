@@ -48,8 +48,17 @@ export default function ProveneEnterpriseOpsHub() {
   const [inspectedCollection, setInspectedCollection] = useState<Collection | null>(null);
 
   const [operatorName, setOperatorName] = useState('Parth Gupta');
+  const [operatorId, setOperatorId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState('');
+
+  // Modal State for Changing ANY User's Password (or Founder's Own Password)
+  const [passwordTarget, setPasswordTarget] = useState<{
+    table: 'kitchens' | 'drivers' | 'employees' | 'FOUNDER_SELF';
+    id: string;
+    name: string;
+  } | null>(null);
+  const [targetNewPassword, setTargetNewPassword] = useState('');
 
   // Custom Grouping States
   const [customGroups, setCustomGroups] = useState<string[]>([]);
@@ -65,7 +74,7 @@ export default function ProveneEnterpriseOpsHub() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
 
-  // Form States (Used inside Slide-Over Drawers)
+  // Form States
   const [kName, setKName] = useState('');
   const [kOwner, setKOwner] = useState('');
   const [kPhone, setKPhone] = useState('');
@@ -124,7 +133,6 @@ export default function ProveneEnterpriseOpsHub() {
       setDAggregatorId(aRes.data[0].id);
     }
 
-    // Merge groups from DB + localStorage
     const dbGroups = Array.from(
       new Set(
         loadedKitchens
@@ -154,6 +162,7 @@ export default function ProveneEnterpriseOpsHub() {
         try {
           const parsed = JSON.parse(saved);
           if (parsed.name) setOperatorName(parsed.name);
+          if (parsed.id) setOperatorId(parsed.id);
         } catch {
           // ignore
         }
@@ -240,6 +249,44 @@ export default function ProveneEnterpriseOpsHub() {
   const notify = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(''), 3500);
+  };
+
+  // Save Password Override for Any User or Self
+  const handleSavePasswordOverride = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passwordTarget) return;
+    const clean = targetNewPassword.trim();
+    if (clean.length < 4) {
+      alert('Password must be at least 4 characters.');
+      return;
+    }
+
+    if (passwordTarget.table === 'FOUNDER_SELF') {
+      if (operatorId) {
+        await supabase.from('employees').update({ password: clean }).eq('id', operatorId);
+      } else if (typeof window !== 'undefined') {
+        localStorage.setItem('provene_founder_pass', clean);
+      }
+      notify(`Updated password for ${passwordTarget.name}`);
+      setPasswordTarget(null);
+      setTargetNewPassword('');
+      await fetchAllData();
+      return;
+    }
+
+    const { error } = await supabase
+      .from(passwordTarget.table)
+      .update({ password: clean })
+      .eq('id', passwordTarget.id);
+
+    if (!error) {
+      notify(`Updated password for ${passwordTarget.name}`);
+      setPasswordTarget(null);
+      setTargetNewPassword('');
+      await fetchAllData();
+    } else {
+      alert(error.message);
+    }
   };
 
   // Custom Group Management Handlers
@@ -482,13 +529,12 @@ export default function ProveneEnterpriseOpsHub() {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#090d16] text-slate-100">
-      {/* LEFT ENTERPRISE SIDEBAR (Collapsible via 3-Line Menu) */}
+      {/* LEFT ENTERPRISE SIDEBAR */}
       <aside
         className={`${sidebarOpen ? 'w-60' : 'w-16'
           } shrink-0 border-r border-slate-800/80 bg-[#0b101b] flex flex-col justify-between transition-all duration-200 z-30`}
       >
         <div>
-          {/* Brand Logo Bar */}
           <div className="flex h-14 items-center justify-between border-b border-slate-800/80 px-4">
             <div className="flex items-center gap-2.5 overflow-hidden">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-slate-950 font-black">
@@ -505,7 +551,6 @@ export default function ProveneEnterpriseOpsHub() {
             </div>
           </div>
 
-          {/* Navigation Links */}
           <nav className="p-2.5 space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -535,7 +580,7 @@ export default function ProveneEnterpriseOpsHub() {
           </nav>
         </div>
 
-        {/* Operator Footer & Logout */}
+        {/* Operator Footer, Change Password & Logout */}
         <div className="border-t border-slate-800/80 p-3 space-y-2">
           {sidebarOpen && (
             <div className="rounded-lg bg-slate-900/90 px-3 py-2 border border-slate-800/80">
@@ -543,6 +588,23 @@ export default function ProveneEnterpriseOpsHub() {
               <p className="text-[10px] text-emerald-400 font-mono">Operations Administrator</p>
             </div>
           )}
+
+          <button
+            onClick={() => {
+              setTargetNewPassword('');
+              setPasswordTarget({
+                table: 'FOUNDER_SELF',
+                id: operatorId || 'FOUNDER',
+                name: operatorName,
+              });
+            }}
+            title="Change Password"
+            className="w-full flex items-center justify-center gap-2 rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs font-medium text-slate-300 hover:border-emerald-500/40 hover:text-emerald-300 transition"
+          >
+            <KeyRound className="h-4 w-4 shrink-0 text-emerald-400" />
+            {sidebarOpen && <span>Change Password</span>}
+          </button>
+
           <button
             onClick={() => {
               localStorage.removeItem('provene_session');
@@ -558,7 +620,6 @@ export default function ProveneEnterpriseOpsHub() {
 
       {/* MAIN CONTENT SHELL */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* TOP ENTERPRISE COMMAND BAR */}
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-800/80 bg-[#0b101b] px-6">
           <div className="flex items-center gap-4">
             <button
@@ -617,7 +678,6 @@ export default function ProveneEnterpriseOpsHub() {
           {/* MODULE 1: COMMAND OVERVIEW */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
-              {/* Top Action Bar */}
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <h1 className="text-lg font-bold text-white">
@@ -645,7 +705,6 @@ export default function ProveneEnterpriseOpsHub() {
                 </div>
               </div>
 
-              {/* High-Density Unit Economics & Telemetry Strip */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="rounded-xl border border-slate-800/90 bg-[#0d1322] p-4">
                   <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-slate-400">
@@ -706,9 +765,7 @@ export default function ProveneEnterpriseOpsHub() {
                 </div>
               </div>
 
-              {/* Split View: Geospatial Radar (5 cols) + Collection Manifest Table (7 cols) */}
               <div className="grid gap-6 lg:grid-cols-12">
-                {/* Geospatial Radar */}
                 <div className="lg:col-span-5 rounded-xl border border-slate-800/90 bg-[#0d1322] flex flex-col justify-between overflow-hidden">
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -754,7 +811,6 @@ export default function ProveneEnterpriseOpsHub() {
                   </div>
                 </div>
 
-                {/* High-Density Collection Manifest Table */}
                 <div className="lg:col-span-7 rounded-xl border border-slate-800/90 bg-[#0d1322] overflow-hidden flex flex-col">
                   <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
                     <div>
@@ -841,8 +897,8 @@ export default function ProveneEnterpriseOpsHub() {
                     Partner Kitchen Network ({kitchens.length})
                   </h1>
                   <p className="text-xs text-slate-400">
-                    Organize outlets into custom groups, manage FSSAI licenses, and assign portal
-                    login credentials.
+                    Organize outlets into custom groups, manage FSSAI licenses, and reset kitchen
+                    passwords.
                   </p>
                 </div>
                 <button
@@ -853,10 +909,8 @@ export default function ProveneEnterpriseOpsHub() {
                 </button>
               </div>
 
-              {/* CUSTOM GROUP BUILDER & FILTER BAR */}
               <div className="rounded-xl border border-slate-800/90 bg-[#0d1322] p-4 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  {/* Group Filter Pills */}
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1">
                       <Layers className="h-3.5 w-3.5 text-emerald-400" /> Groups:
@@ -898,7 +952,6 @@ export default function ProveneEnterpriseOpsHub() {
                     })}
                   </div>
 
-                  {/* Create New Group Inline Form */}
                   <form onSubmit={handleCreateCustomGroup} className="flex items-center gap-2">
                     <input
                       type="text"
@@ -916,7 +969,6 @@ export default function ProveneEnterpriseOpsHub() {
                   </form>
                 </div>
 
-                {/* Bulk Assignment Action Bar (Appears when 1 or more kitchens are checked) */}
                 {selectedKitchenIds.length > 0 && (
                   <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-500/40 bg-sky-950/25 px-3.5 py-2 text-xs">
                     <span className="font-semibold text-sky-300">
@@ -1042,7 +1094,7 @@ export default function ProveneEnterpriseOpsHub() {
                             <td className="py-3 px-4">
                               {k.pickup_requested ? (
                                 <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-bold text-amber-300">
-                                  ● DRUM FULL (REQUESTED)
+                                  ● DRUM FULL
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-400">
@@ -1053,11 +1105,26 @@ export default function ProveneEnterpriseOpsHub() {
                             <td className="py-3 px-4 font-mono font-bold text-emerald-400">
                               {kTotalKg.toFixed(1)} kg ({kPickups.length})
                             </td>
-                            <td className="py-3 px-4 font-mono text-[11px] text-sky-400">
-                              {k.login_id || 'kitchen@provene.in'}
-                              <span className="text-slate-500 block">
+                            <td className="py-3 px-4 font-mono text-[11px]">
+                              <span className="text-sky-400 block">
+                                {k.login_id || 'kitchen@provene.in'}
+                              </span>
+                              <span className="text-slate-400 block">
                                 Pass: {k.password || 'kitchen123'}
                               </span>
+                              <button
+                                onClick={() => {
+                                  setTargetNewPassword('');
+                                  setPasswordTarget({
+                                    table: 'kitchens',
+                                    id: k.id,
+                                    name: k.name,
+                                  });
+                                }}
+                                className="mt-1 inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300 hover:bg-amber-500/20"
+                              >
+                                <KeyRound className="h-2.5 w-2.5" /> Change Pass
+                              </button>
                             </td>
                             <td className="py-3 px-4 text-right">
                               <button
@@ -1094,7 +1161,7 @@ export default function ProveneEnterpriseOpsHub() {
                     Fleet & Field Collectors ({drivers.length})
                   </h1>
                   <p className="text-xs text-slate-400">
-                    Manage Provene in-house drivers and third-party aggregator collection agents.
+                    Manage Provene in-house drivers, 3PL agents, and reset driver passwords.
                   </p>
                 </div>
                 <button
@@ -1152,9 +1219,22 @@ export default function ProveneEnterpriseOpsHub() {
                             <td className="py-3 px-4 font-mono font-bold text-emerald-400">
                               {dKg.toFixed(1)} kg ({dRuns.length} stops)
                             </td>
-                            <td className="py-3 px-4 font-mono text-[11px] text-sky-400">
-                              {d.login_id}
-                              <span className="text-slate-500 block">Pass: {d.password}</span>
+                            <td className="py-3 px-4 font-mono text-[11px]">
+                              <span className="text-sky-400 block">{d.login_id}</span>
+                              <span className="text-slate-400 block">Pass: {d.password}</span>
+                              <button
+                                onClick={() => {
+                                  setTargetNewPassword('');
+                                  setPasswordTarget({
+                                    table: 'drivers',
+                                    id: d.id,
+                                    name: d.name,
+                                  });
+                                }}
+                                className="mt-1 inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300 hover:bg-amber-500/20"
+                              >
+                                <KeyRound className="h-2.5 w-2.5" /> Change Pass
+                              </button>
                             </td>
                             <td className="py-3 px-4 text-right">
                               <button
@@ -1289,7 +1369,7 @@ export default function ProveneEnterpriseOpsHub() {
                     Internal Team & Access Management ({employees.length + 1})
                   </h1>
                   <p className="text-xs text-slate-400">
-                    Manage internal Provene employees with Ops Hub console access.
+                    Manage internal Provene employees and reset staff passwords.
                   </p>
                 </div>
                 <button
@@ -1320,7 +1400,22 @@ export default function ProveneEnterpriseOpsHub() {
                       </td>
                       <td className="py-3 px-4 font-mono text-slate-400">Primary Owner</td>
                       <td className="py-3 px-4 font-mono text-purple-300">founder@provene.in</td>
-                      <td className="py-3 px-4 font-mono text-slate-500">••••••••</td>
+                      <td className="py-3 px-4 font-mono text-slate-400">
+                        ••••••••
+                        <button
+                          onClick={() => {
+                            setTargetNewPassword('');
+                            setPasswordTarget({
+                              table: 'FOUNDER_SELF',
+                              id: 'FOUNDER',
+                              name: 'Parth Gupta (Founder)',
+                            });
+                          }}
+                          className="ml-2 inline-flex items-center gap-1 rounded border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-[10px] font-semibold text-purple-300 hover:bg-purple-500/20"
+                        >
+                          <KeyRound className="h-2.5 w-2.5" /> Change Pass
+                        </button>
+                      </td>
                       <td className="py-3 px-4 text-right text-[10px] font-mono text-purple-400">
                         ROOT
                       </td>
@@ -1331,7 +1426,22 @@ export default function ProveneEnterpriseOpsHub() {
                         <td className="py-3 px-4 text-slate-300">{emp.role}</td>
                         <td className="py-3 px-4 font-mono text-slate-400">{emp.phone}</td>
                         <td className="py-3 px-4 font-mono text-emerald-400">{emp.login_id}</td>
-                        <td className="py-3 px-4 font-mono text-slate-300">{emp.password}</td>
+                        <td className="py-3 px-4 font-mono text-slate-300">
+                          {emp.password}
+                          <button
+                            onClick={() => {
+                              setTargetNewPassword('');
+                              setPasswordTarget({
+                                table: 'employees',
+                                id: emp.id,
+                                name: emp.name,
+                              });
+                            }}
+                            className="ml-2 inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300 hover:bg-amber-500/20"
+                          >
+                            <KeyRound className="h-2.5 w-2.5" /> Change Pass
+                          </button>
+                        </td>
                         <td className="py-3 px-4 text-right">
                           <button
                             onClick={async () => {
@@ -1352,6 +1462,50 @@ export default function ProveneEnterpriseOpsHub() {
           )}
         </div>
       </div>
+
+      {/* ADMIN PASSWORD CHANGE MODAL (FOR ANY USER OR SELF) */}
+      {passwordTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+          <div className="w-full max-w-sm rounded-xl border border-slate-800 bg-[#0b101b] p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <KeyRound className="h-4 w-4 text-emerald-400" />
+                <span className="text-sm font-bold text-white">Change Password</span>
+              </div>
+              <button
+                onClick={() => setPasswordTarget(null)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePasswordOverride} className="space-y-3 text-xs">
+              <p className="text-slate-400">
+                Setting new password for <strong className="text-white">{passwordTarget.name}</strong>
+                :
+              </p>
+              <div>
+                <label className="block text-slate-300 mb-1">New Password *</label>
+                <input
+                  type="text"
+                  required
+                  value={targetNewPassword}
+                  onChange={(e) => setTargetNewPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-white"
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full rounded-lg bg-emerald-500 py-2.5 font-bold text-slate-950 hover:bg-emerald-400"
+              >
+                Save New Password
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* PRIVATE HASH INSPECTOR MODAL (FOR FOUNDER) */}
       {inspectedCollection && (
@@ -1429,7 +1583,6 @@ export default function ProveneEnterpriseOpsHub() {
               </button>
             </div>
 
-            {/* DRAWER 1: ADD KITCHEN */}
             {activeDrawer === 'ADD_KITCHEN' && (
               <form onSubmit={handleCreateKitchen} className="space-y-4 text-xs">
                 <div>
@@ -1578,7 +1731,6 @@ export default function ProveneEnterpriseOpsHub() {
               </form>
             )}
 
-            {/* DRAWER 2: ADD DRIVER */}
             {activeDrawer === 'ADD_DRIVER' && (
               <form onSubmit={handleCreateDriver} className="space-y-4 text-xs">
                 <div>
@@ -1689,7 +1841,6 @@ export default function ProveneEnterpriseOpsHub() {
               </form>
             )}
 
-            {/* DRAWER 3: ADD AGGREGATOR */}
             {activeDrawer === 'ADD_AGGREGATOR' && (
               <form onSubmit={handleCreateAggregator} className="space-y-4 text-xs">
                 <div>
@@ -1771,7 +1922,6 @@ export default function ProveneEnterpriseOpsHub() {
               </form>
             )}
 
-            {/* DRAWER 4: ADD EMPLOYEE */}
             {activeDrawer === 'ADD_EMPLOYEE' && (
               <form onSubmit={handleCreateEmployee} className="space-y-4 text-xs">
                 <div>

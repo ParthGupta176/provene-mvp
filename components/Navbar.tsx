@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ShieldCheck, LogIn } from 'lucide-react';
+import { ShieldCheck, LogIn, KeyRound } from 'lucide-react';
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -58,15 +58,24 @@ export default function Navbar() {
           </Link>
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           {pathname !== '/login' ? (
-            <Link
-              href="/login"
-              className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
-            >
-              <LogIn className="h-4 w-4" />
-              Portal Login
-            </Link>
+            <>
+              <Link
+                href="/login?mode=reset"
+                className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+              >
+                <KeyRound className="h-3.5 w-3.5 text-slate-500" />
+                Reset Password
+              </Link>
+              <Link
+                href="/login"
+                className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
+              >
+                <LogIn className="h-4 w-4" />
+                Portal Login
+              </Link>
+            </>
           ) : (
             <Link
               href="/"

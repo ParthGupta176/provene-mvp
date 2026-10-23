@@ -1,9 +1,23 @@
 @import "tailwindcss";
 
-@layer base {
-  body {
-    background-color: #020617;
-    color: #f8fafc;
-    font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
-  }
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Completely hide the Next.js "N" dev overlay badge */
+nextjs-portal,
+#nextjs-dev-overlay,
+[data-nextjs-dev-tools-button],
+[data-nextjs-toast] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
